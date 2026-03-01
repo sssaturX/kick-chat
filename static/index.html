@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Kick Chat Dashboard — управление аккаунтами и чатом">
+  <title>Kick Chat Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0a0a0c;
+      --bg-panel: #121214;
+      --bg-elevated: #1a1a1e;
+      --border: #2a2a2e;
+      --border-focus: #3f3f46;
+      --text: #f4f4f5;
+      --text-muted: #71717a;
+      --text-dim: #52525b;
+      --accent: #9147ff;
+      --accent-hover: #7c3aed;
+      --accent-dim: rgba(145, 71, 255, 0.15);
+      --success: #22c55e;
+      --success-dim: rgba(34, 197, 94, 0.2);
+      --error: #ef4444;
+      --error-bg: rgba(239, 68, 68, 0.12);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      --transition: 0.2s ease;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Outfit', system-ui, sans-serif;
+      background: var(--bg-base);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 340px 1fr 300px;
+      grid-template-rows: auto 1fr auto;
+      gap: 12px;
+      height: 100vh;
+      padding: 12px;
+    }
+
+    .header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .logo {
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .channel-badge {
+      padding: 6px 12px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-radius: var(--radius-sm);
+      font-size: 0.8125rem;
+      font-weight: 500;
+    }
+    .header-meta {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow);
+    }
+    .panel-head {
+      padding: 14px 18px;
+      font-weight: 600;
+      font-size: 0.9375rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-elevated);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .panel-head-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      background: var(--accent-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+    .chat-wrap, .stream-wrap { flex: 1; min-height: 0; position: relative; }
+    .chat-wrap iframe, .stream-wrap iframe {
+      position: absolute; inset: 0; width: 100%; height: 100%; border: none;
+    }
+    .stream-wrap { background: #000; }
+    .stream-wrap::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+    }
+
+    .accounts-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .accounts-list::-webkit-scrollbar { width: 6px; }
+    .accounts-list::-webkit-scrollbar-track { background: transparent; }
+    .accounts-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .account-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      margin-bottom: 4px;
+      transition: background var(--transition);
+    }
+    .account-row:hover { background: var(--bg-elevated); }
+    .account-row.selected {
+      background: var(--accent-dim);
+      border: 1px solid rgba(145, 71, 255, 0.35);
+    }
+    .account-row .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--bg-elevated);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .account-row .info { flex: 1; min-width: 0; }
+    .account-row .name {
+      font-weight: 500;
+      font-size: 0.9375rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .account-row .id { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+    .account-row .runner-state { font-size: 0.6875rem; color: var(--text-dim); margin-top: 1px; }
+    .account-row .status-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .account-row .status {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .account-row .status.online {
+      background: var(--success);
+      box-shadow: 0 0 0 2px var(--success-dim);
+    }
+    .account-row .status.online.pulse {
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .account-row .status.offline { background: var(--error); }
+    .account-row .status.unknown { background: var(--text-dim); }
+    .account-row .status-label {
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      max-width: 48px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .btn-add-account {
+      margin-left: auto;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background var(--transition);
+    }
+    .btn-add-account:hover { background: rgba(145, 71, 255, 0.25); }
+    .account-block { margin-bottom: 8px; }
+    .account-proxy {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 14px 10px 52px;
+      margin-top: 2px;
+      border-top: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    }
+    .account-proxy .proxy-label {
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-dim);
+      min-width: 36px;
+    }
+    .account-proxy .proxy-input {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-base);
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+      font-family: ui-monospace, monospace;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .account-proxy .proxy-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .account-proxy .proxy-input::placeholder { color: var(--text-dim); }
+    .account-proxy .proxy-save {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background var(--transition);
+    }
+    .account-proxy .proxy-save:hover {
+      background: rgba(145, 71, 255, 0.3);
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .bottom-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+      padding: 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .bottom-bar .select-wrap {
+      position: relative;
+      min-width: 200px;
+    }
+    .bottom-bar select {
+      width: 100%;
+      height: 100%;
+      padding: 14px 16px;
+      padding-right: 40px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      cursor: pointer;
+      appearance: none;
+      transition: border-color var(--transition);
+    }
+    .bottom-bar select:hover { border-color: var(--border-focus); }
+    .bottom-bar select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .bottom-bar .input-group { flex: 1; display: flex; flex-direction: column; gap: 0; min-width: 0; }
+    .bottom-bar .input-wrap { flex: 1; position: relative; min-width: 0; display: flex; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-elevated); }
+    .bottom-bar .input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+    .bottom-bar input[type="text"] {
+      width: 100%;
+      height: 100%;
+      padding: 14px 18px;
+      padding-right: 52px;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9375rem;
+      transition: border-color var(--transition);
+    }
+    .bottom-bar input[type="text"]::placeholder { color: var(--text-dim); }
+    .bottom-bar input[type="text"]:focus { outline: none; }
+    .bottom-bar .char-count {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .bottom-bar .char-count.warn { color: var(--error); }
+    .bottom-bar button {
+      padding: 14px 28px;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+      color: #fff;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.9375rem;
+      cursor: pointer;
+      transition: transform var(--transition), box-shadow var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-width: 120px;
+    }
+    .bottom-bar button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(145, 71, 255, 0.4);
+    }
+    .bottom-bar button:active:not(:disabled) { transform: translateY(0); }
+    .bottom-bar button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .bottom-bar button .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading {
+      padding: 32px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9375rem;
+    }
+    .loading-dots::after {
+      content: '';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60%, 100% { content: '...'; }
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 14px 20px;
+      background: var(--error-bg);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--error);
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 500;
+      box-shadow: var(--shadow);
+      z-index: 1000;
+      animation: toastIn 0.3s ease;
+      max-width: 360px;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .last-update {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+    .btn-shutdown {
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--error);
+      background: transparent;
+      color: var(--error);
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+    }
+    .btn-shutdown:hover { background: var(--error-bg); }
+    .btn-shutdown:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .tabs { display: flex; gap: 4px; margin-right: 12px; }
+    .tabs button {
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .tabs button:hover { color: var(--text); background: var(--bg-panel); }
+    .tabs button.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+    .tab-content { display: none; grid-column: 1 / -1; }
+    .tab-content.is-active { display: grid; grid-template-columns: 1fr; gap: 12px; align-content: start; }
+
+    .viewerbot-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .viewerbot-panel h2 { margin: 0 0 16px; font-size: 1rem; }
+    .viewerbot-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 16px; }
+    .viewerbot-field { display: flex; flex-direction: column; gap: 4px; }
+    .viewerbot-field label { font-size: 0.75rem; color: var(--text-muted); }
+    .viewerbot-field input, .viewerbot-field textarea {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-base);
+      color: var(--text);
+      font-size: 0.875rem;
+      font-family: inherit;
+    }
+    .viewerbot-field textarea { min-height: 100px; resize: vertical; }
+    .viewerbot-actions { display: flex; gap: 10px; align-items: center; }
+    .viewerbot-btn { padding: 10px 20px; border: none; border-radius: var(--radius-sm); font-weight: 500; cursor: pointer; font-size: 0.875rem; }
+    .viewerbot-btn-start { background: var(--accent); color: #fff; }
+    .viewerbot-btn-start:hover:not(:disabled) { background: var(--accent-hover); }
+    .viewerbot-btn-stop { background: var(--error); color: #fff; }
+    .viewerbot-btn-stop:hover:not(:disabled) { opacity: 0.9; }
+    .viewerbot-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .viewerbot-stats { margin-top: 16px; padding: 12px; background: var(--bg-elevated); border-radius: var(--radius-sm); font-size: 0.875rem; color: var(--text-muted); }
+    .viewerbot-stats span { color: var(--text); font-weight: 500; }
+    .viewerbot-online { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 12px; padding: 12px; background: var(--bg-base); border-radius: var(--radius-sm); font-size: 0.8125rem; }
+    .viewerbot-online-item { color: var(--text-muted); }
+    .viewerbot-online-item strong { color: var(--success); margin-right: 4px; }
+    .viewerbot-log-wrap { margin-top: 16px; }
+    .viewerbot-log-wrap label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
+    .viewerbot-log { height: 220px; overflow: auto; padding: 12px; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: ui-monospace, monospace; font-size: 0.75rem; line-height: 1.4; white-space: pre-wrap; word-break: break-all; color: var(--text); }
+    .viewerbot-log:empty::before { content: 'Лог Python-скрипта появится здесь после запуска.'; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-left">
+        <span class="logo">Kick Chat</span>
+        <span class="channel-badge" id="channelBadge">—</span>
+        <div class="tabs">
+          <button type="button" class="tab-btn active" data-tab="dashboard">Дашборд</button>
+          <button type="button" class="tab-btn" data-tab="viewerbot">Накрутка зрителей</button>
+        </div>
+      </div>
+      <div class="header-meta" style="display:flex; align-items:center; gap:12px;">
+        <span class="last-update" id="lastUpdate"></span>
+        <button type="button" class="btn-shutdown" id="shutdownBtn" title="Завершить работу приложения">Отключить</button>
+      </div>
+    </header>
+
+    <div id="tabDashboard" class="tab-content is-active" style="grid-column: 1 / -1; display: grid; grid-template-columns: 340px 1fr 300px; grid-template-rows: 1fr auto; gap: 12px;">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-head-icon">💬</span>
+        Чат
+      </div>
+      <div class="chat-wrap">
+        <iframe id="chatFrame" title="Kick Chat"></iframe>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-head-icon">▶</span>
+        Трансляция
+      </div>
+      <div class="stream-wrap">
+        <iframe id="streamFrame" title="Kick Stream"></iframe>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-head-icon">👤</span>
+        Аккаунты
+        <span class="header-meta" style="margin-left:auto;font-size:0.75rem;">онлайн = прокси ок</span>
+        <a href="/oauth/start" class="btn-add-account" target="_blank" rel="noopener" title="Добавить аккаунт (OAuth)">+</a>
+      </div>
+      <div class="accounts-list" id="accountsList">
+        <div class="loading loading-dots">Загрузка</div>
+      </div>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="select-wrap">
+        <select id="accountSelect">
+          <option value="">Выберите аккаунт</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <div class="input-wrap">
+          <input type="text" id="messageInput" placeholder="Сообщение в чат…" maxlength="500" autocomplete="off">
+          <span class="char-count" id="charCount"></span>
+        </div>
+      </div>
+      <button type="button" id="sendBtn">
+        <span id="sendBtnText">Отправить</span>
+        <span id="sendBtnSpinner" class="spinner" style="display:none;"></span>
+      </button>
+    </div>
+    </div>
+
+    <div id="tabViewerbot" class="tab-content" style="display: none; grid-column: 1 / -1;">
+      <div class="viewerbot-panel">
+        <h2>Накрутка зрителей</h2>
+        <p style="margin:0 0 16px; font-size:0.8125rem; color: var(--text-muted);">Канал и число зрителей. Прокси — по одному на строку (host:port или host:port:user:pass, SOCKS5). Без прокси все соединения с одного IP.</p>
+        <div class="viewerbot-form">
+          <div class="viewerbot-field">
+            <label>Канал (slug)</label>
+            <input type="text" id="viewerbotChannel" placeholder="mlaffonxd">
+          </div>
+          <div class="viewerbot-field">
+            <label>Число зрителей (1–5000)</label>
+            <input type="number" id="viewerbotTarget" min="1" max="5000" value="50">
+          </div>
+          <div class="viewerbot-actions">
+            <button type="button" class="viewerbot-btn viewerbot-btn-start" id="viewerbotStart">Старт</button>
+            <button type="button" class="viewerbot-btn viewerbot-btn-stop" id="viewerbotStop" disabled>Стоп</button>
+          </div>
+        </div>
+        <div class="viewerbot-field">
+          <label>Прокси (по одной на строку)</label>
+          <textarea id="viewerbotProxies" placeholder="host:port или host:port:user:pass"></textarea>
+        </div>
+        <div class="viewerbot-stats" id="viewerbotStats">Не запущено.</div>
+        <div class="viewerbot-online" id="viewerbotOnline" style="display: none;"></div>
+        <div class="viewerbot-log-wrap">
+          <label>Лог Python-скрипта</label>
+          <pre class="viewerbot-log" id="viewerbotLog"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const chatFrame = document.getElementById('chatFrame');
+    const streamFrame = document.getElementById('streamFrame');
+    const accountsList = document.getElementById('accountsList');
+    const accountSelect = document.getElementById('accountSelect');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const sendBtnText = document.getElementById('sendBtnText');
+    const sendBtnSpinner = document.getElementById('sendBtnSpinner');
+    const charCount = document.getElementById('charCount');
+    const channelBadge = document.getElementById('channelBadge');
+    const lastUpdate = document.getElementById('lastUpdate');
+    let channelSlug = '';
+    let accounts = [];
+    let statusMap = {};
+    let runnersMap = {};
+    let lastUpdateTime = null;
+
+    function showError(msg) {
+      const existing = document.querySelector('.toast');
+      if (existing) existing.remove();
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 5000);
+    }
+
+    function setLastUpdate() {
+      lastUpdateTime = Date.now();
+      lastUpdate.textContent = '';
+    }
+    function refreshLastUpdate() {
+      if (!lastUpdateTime) return;
+      const sec = Math.floor((Date.now() - lastUpdateTime) / 1000);
+      if (sec < 60) lastUpdate.textContent = 'Обновлено только что';
+      else if (sec < 3600) lastUpdate.textContent = 'Обновлено ' + Math.floor(sec / 60) + ' мин назад';
+      else lastUpdate.textContent = '';
+    }
+
+    async function fetchJSON(path) {
+      const r = await fetch(path);
+      const text = await r.text();
+      if (!r.ok) {
+        const msg = (text && text.length < 200) ? text : r.statusText || 'Ошибка ' + r.status;
+        throw new Error(msg);
+      }
+      try {
+        return text ? JSON.parse(text) : null;
+      } catch (_) {
+        throw new Error('Неверный ответ сервера');
+      }
+    }
+
+    async function loadChannel() {
+      const data = await fetchJSON('/api/channel');
+      channelSlug = (data && data.slug) || 'mlaffonxd';
+      channelBadge.textContent = channelSlug;
+      streamFrame.src = 'https://player.kick.com/' + channelSlug;
+      chatFrame.src = 'https://kick.com/' + channelSlug;
+    }
+
+    function getInitial(name) {
+      if (!name || name.startsWith('Account ')) return '?';
+      return (name.trim()[0] || '?').toUpperCase();
+    }
+
+    function formatRunnerState(r) {
+      if (!r) return '';
+      const parts = [];
+      parts.push(r.state);
+      if (r.queue_size > 0) parts.push('очередь: ' + r.queue_size);
+      if (r.cooldown_seconds > 0) parts.push('cooldown: ' + r.cooldown_seconds + 's');
+      if (r.last_send_time) {
+        const t = new Date(r.last_send_time).getTime();
+        if (t) {
+          const sec = Math.floor((Date.now() - t) / 1000);
+          if (sec < 60) parts.push('отправка: только что');
+          else if (sec < 3600) parts.push('отправка: ' + Math.floor(sec / 60) + ' мин назад');
+          else parts.push('отправка: ' + Math.floor(sec / 3600) + ' ч назад');
+        }
+      }
+      return parts.join(' · ');
+    }
+
+    async function loadRunners() {
+      try {
+        const list = await fetchJSON('/api/runners');
+        runnersMap = {};
+        list.forEach(r => { runnersMap[r.id] = r; });
+      } catch (_) { runnersMap = {}; }
+    }
+
+    function refreshRunnerStatesInDOM() {
+      accountsList.querySelectorAll('.account-row').forEach(row => {
+        const id = parseInt(row.dataset.id, 10);
+        const r = runnersMap[id];
+        let runnerEl = row.querySelector('.runner-state');
+        const text = r ? (r.state + (r.queue_size > 0 ? ' · очередь ' + r.queue_size : '') + (r.cooldown_seconds > 0 ? ' · cooldown ' + r.cooldown_seconds + 's' : '')) : '';
+        const tip = formatRunnerState(r);
+        if (text) {
+          if (!runnerEl) {
+            runnerEl = document.createElement('div');
+            runnerEl.className = 'id runner-state';
+            row.querySelector('.info').appendChild(runnerEl);
+          }
+          runnerEl.textContent = text;
+          runnerEl.title = tip;
+        } else if (runnerEl) {
+          runnerEl.remove();
+        }
+      });
+    }
+
+    async function loadAccounts() {
+      let list = [];
+      try {
+        list = await fetchJSON('/api/accounts');
+      } catch (e) {
+        accountsList.innerHTML = '<div class="toast" style="position:static;margin:12px;">Ошибка загрузки аккаунтов: ' + escapeHtml(e.message) + '</div>';
+        return;
+      }
+      if (!Array.isArray(list)) list = [];
+      accounts = list;
+
+      let statusList = [];
+      try {
+        statusList = await fetchJSON('/api/status');
+      } catch (_) { statusList = []; }
+      statusMap = {};
+      if (Array.isArray(statusList)) statusList.forEach(s => { statusMap[s.id] = s.online; });
+
+      try { await loadRunners(); } catch (_) { runnersMap = {}; }
+      setLastUpdate();
+
+      accountSelect.innerHTML = '<option value="">Выберите аккаунт</option>' +
+        accounts.map(a => '<option value="' + a.id + '">' + a.id + ': ' + escapeHtml(a.name) + (statusMap[a.id] ? ' ✓' : '') + '</option>').join('');
+
+      const current = accounts.find(a => a.current);
+      if (current) {
+        accountSelect.value = String(current.id);
+        messageInput.focus();
+      }
+      selectRow();
+
+      accountsList.innerHTML = accounts.map(a => {
+        const online = statusMap[a.id];
+        const statusClass = online === true ? 'online' : (online === false ? 'offline' : 'unknown');
+        const pulse = online === true ? ' pulse' : '';
+        const label = online === true ? 'Онлайн' : (online === false ? 'Офлайн' : '—');
+        const r = runnersMap[a.id];
+        const runnerTip = formatRunnerState(r);
+        const runnerLine = r ? '<div class="id runner-state" title="' + escapeHtml(runnerTip) + '">' + escapeHtml(r.state) + (r.queue_size > 0 ? ' · очередь ' + r.queue_size : '') + (r.cooldown_seconds > 0 ? ' · cooldown ' + r.cooldown_seconds + 's' : '') + '</div>' : '';
+        const proxyVal = (a.proxy != null && a.proxy !== undefined) ? a.proxy : '';
+        return '<div class="account-block">' +
+          '<div class="account-row' + (a.current ? ' selected' : '') + '" data-id="' + a.id + '" title="Аккаунт #' + a.id + (runnerTip ? '\n' + runnerTip : '') + '">' +
+          '<span class="avatar">' + escapeHtml(getInitial(a.name)) + '</span>' +
+          '<div class="info"><div class="name">' + escapeHtml(a.name) + '</div><div class="id">#' + a.id + '</div>' + runnerLine + '</div>' +
+          '<div class="status-wrap"><span class="status ' + statusClass + pulse + '" title="' + label + '"></span><span class="status-label">' + label + '</span></div></div>' +
+          '<div class="account-proxy"><span class="proxy-label">Прокси</span><input type="text" class="proxy-input" placeholder="host:port:user:pass" value="' + escapeHtml(proxyVal) + '" data-id="' + a.id + '"><button type="button" class="proxy-save" title="Сохранить" data-id="' + a.id + '">✓</button></div></div>';
+      }).join('');
+
+      if (accounts.length === 0) {
+        accountsList.innerHTML = '<div class="toast" style="position:static;margin:12px;">Нет аккаунтов. Добавьте аккаунт через кнопку OAuth в шапке.</div>';
+      }
+
+      accountsList.querySelectorAll('.account-row').forEach(el => {
+        el.addEventListener('click', (ev) => {
+          if (ev.target.closest('.account-proxy')) return;
+          const id = el.dataset.id;
+          accountSelect.value = id;
+          if (id) fetch('/api/accounts/current', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account_id: parseInt(id, 10) }) }).catch(() => {});
+          selectRow();
+          messageInput.focus();
+        });
+      });
+      accountsList.querySelectorAll('.proxy-save').forEach(btn => {
+        btn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const id = btn.dataset.id;
+          const input = accountsList.querySelector('.proxy-input[data-id="' + id + '"]');
+          const proxy = input ? input.value.trim() : '';
+          try {
+            const r = await fetch('/api/accounts/' + id + '/proxy', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ proxy: proxy })
+            });
+            if (!r.ok) throw new Error(await r.text());
+            showError('Прокси сохранён');
+            setTimeout(() => loadAccounts(), 500);
+          } catch (e) {
+            showError(e.message || 'Ошибка сохранения прокси');
+          }
+        });
+      });
+    }
+
+    function selectRow() {
+      accountsList.querySelectorAll('.account-row').forEach(el => {
+        el.classList.toggle('selected', el.dataset.id === accountSelect.value);
+      });
+    }
+    accountSelect.addEventListener('change', () => {
+      selectRow();
+      const id = parseInt(accountSelect.value, 10);
+      if (id) fetch('/api/accounts/current', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account_id: id }) }).catch(() => {});
+      messageInput.focus();
+    });
+
+    messageInput.addEventListener('input', () => {
+      const n = messageInput.value.length;
+      charCount.textContent = n > 0 ? n + '/500' : '';
+      charCount.classList.toggle('warn', n > 450);
+    });
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    async function sendMessage(optionalText) {
+      const accountId = accountSelect.value;
+      const msg = optionalText !== undefined ? String(optionalText) : messageInput.value.trim();
+      if (!accountId || !msg) {
+        showError('Выберите аккаунт и введите сообщение.');
+        return;
+      }
+      sendBtn.disabled = true;
+      sendBtnText.style.display = 'none';
+      sendBtnSpinner.style.display = 'block';
+      try {
+        const r = await fetch('/api/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id: parseInt(accountId, 10), message: msg })
+        });
+        const text = await r.text();
+        if (!r.ok) {
+          showError(text || r.statusText);
+          return;
+        }
+        if (optionalText === undefined) {
+          messageInput.value = '';
+          charCount.textContent = '';
+        }
+      } finally {
+        sendBtn.disabled = false;
+        sendBtnText.style.display = 'block';
+        sendBtnSpinner.style.display = 'none';
+      }
+    }
+
+    const shutdownBtn = document.getElementById('shutdownBtn');
+    shutdownBtn.addEventListener('click', async () => {
+      shutdownBtn.disabled = true;
+      shutdownBtn.textContent = 'Отключаем…';
+      try {
+        await fetch('/api/shutdown', { method: 'POST' });
+      } catch (_) {}
+      setTimeout(() => { shutdownBtn.textContent = 'Сервер остановлен'; }, 500);
+    });
+
+    sendBtn.addEventListener('click', () => sendMessage());
+
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    function checkOAuthParams() {
+      const params = new URLSearchParams(window.location.search);
+      const added = params.get('added');
+      const oauth = params.get('oauth');
+      if (added === '1') {
+        showError('Аккаунт добавлен.');
+        history.replaceState({}, '', window.location.pathname);
+      } else if (oauth) {
+        const msg = { error: 'Ошибка OAuth', expired: 'Сессия истекла', exchange_failed: 'Обмен кода не удался', add_failed: 'Не удалось добавить аккаунт' }[oauth] || oauth;
+        showError(msg);
+        history.replaceState({}, '', window.location.pathname);
+      }
+    }
+
+    let viewerbotStatusInterval = null;
+    function startViewerbotStatusPoll() {
+      if (viewerbotStatusInterval) return;
+      viewerbotStatusInterval = setInterval(updateViewerbotStatus, 2000);
+      updateViewerbotStatus();
+    }
+    function stopViewerbotStatusPoll() {
+      if (viewerbotStatusInterval) { clearInterval(viewerbotStatusInterval); viewerbotStatusInterval = null; }
+    }
+    let viewerbotLogInterval = null;
+    async function updateViewerbotLog() {
+      const el = document.getElementById('viewerbotLog');
+      if (!el) return;
+      try {
+        const r = await fetch('/api/viewerbot/log');
+        if (!r.ok) return;
+        const data = await r.json();
+        const lines = data.lines || [];
+        el.textContent = lines.length ? lines.join('\n') : '';
+        if (lines.length) el.scrollTop = el.scrollHeight;
+      } catch (_) {}
+    }
+    function startViewerbotLogPoll() {
+      if (viewerbotLogInterval) return;
+      viewerbotLogInterval = setInterval(updateViewerbotLog, 2000);
+      updateViewerbotLog();
+    }
+    function stopViewerbotLogPoll() {
+      if (viewerbotLogInterval) { clearInterval(viewerbotLogInterval); viewerbotLogInterval = null; }
+    }
+    async function updateViewerbotStatus() {
+      const el = document.getElementById('viewerbotStats');
+      const onlineEl = document.getElementById('viewerbotOnline');
+      if (!el) return;
+      try {
+        const r = await fetch('/api/viewerbot/status');
+        if (!r.ok) return;
+        const st = await r.json();
+        if (st.running) {
+          const dur = st.duration_sec || 0;
+          const m = Math.floor(dur / 60);
+          const s = dur % 60;
+          el.innerHTML = 'Запущено. Подключено: <span>' + st.connected + '</span> / <span>' + st.target + '</span> · Длительность: <span>' + m + ' мин ' + s + ' с</span>';
+          if (onlineEl) {
+            onlineEl.style.display = 'flex';
+            onlineEl.innerHTML =
+              '<span class="viewerbot-online-item"><strong>Онлайн (стрим):</strong> ' + (st.viewers != null ? st.viewers : '—') + '</span>' +
+              '<span class="viewerbot-online-item"><strong>Подключено:</strong> ' + st.connected + ' / ' + st.target + '</span>' +
+              (st.pings != null ? '<span class="viewerbot-online-item"><strong>Пинги:</strong> ' + st.pings + '</span>' : '') +
+              (st.attempts != null ? '<span class="viewerbot-online-item"><strong>Попытки:</strong> ' + st.attempts + '</span>' : '') +
+              (st.heartbeats != null ? '<span class="viewerbot-online-item"><strong>Хартбиты:</strong> ' + st.heartbeats + '</span>' : '') +
+              '<span class="viewerbot-online-item"><strong>Длительность:</strong> ' + m + ' мин ' + s + ' с</span>';
+          }
+          document.getElementById('viewerbotStart').disabled = true;
+          document.getElementById('viewerbotStop').disabled = false;
+          startViewerbotLogPoll();
+        } else {
+          el.textContent = 'Не запущено.';
+          if (onlineEl) onlineEl.style.display = 'none';
+          document.getElementById('viewerbotStart').disabled = false;
+          document.getElementById('viewerbotStop').disabled = true;
+          stopViewerbotLogPoll();
+        }
+      } catch (_) {}
+    }
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => { b.classList.toggle('active', b.dataset.tab === name); });
+      const dash = document.getElementById('tabDashboard');
+      const vb = document.getElementById('tabViewerbot');
+      if (name === 'dashboard') {
+        dash.style.display = 'grid';
+        vb.style.display = 'none';
+        stopViewerbotStatusPoll();
+        stopViewerbotLogPoll();
+      } else {
+        dash.style.display = 'none';
+        vb.style.display = 'block';
+        if (document.getElementById('viewerbotChannel').value === '' && channelSlug) document.getElementById('viewerbotChannel').placeholder = channelSlug;
+        startViewerbotStatusPoll();
+        updateViewerbotLog();
+      }
+    }
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+    document.getElementById('viewerbotStart').addEventListener('click', async () => {
+      const channel = document.getElementById('viewerbotChannel').value.trim() || channelSlug;
+      const target = parseInt(document.getElementById('viewerbotTarget').value, 10) || 50;
+      const proxiesText = document.getElementById('viewerbotProxies').value.trim();
+      const proxies = proxiesText ? proxiesText.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : [];
+      if (!channel) { showError('Укажите канал или выберите канал в дашборде'); return; }
+      if (target < 1 || target > 5000) { showError('Число зрителей: 1–5000'); return; }
+      try {
+        const r = await fetch('/api/viewerbot/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel_slug: channel, target: target, proxies: proxies })
+        });
+        const text = await r.text();
+        if (!r.ok) { showError(text || r.statusText); return; }
+        showError('Накрутка запущена');
+        startViewerbotStatusPoll();
+      } catch (e) { showError(e.message); }
+    });
+    document.getElementById('viewerbotStop').addEventListener('click', async () => {
+      try {
+        await fetch('/api/viewerbot/stop', { method: 'POST' });
+        showError('Накрутка остановлена');
+        updateViewerbotStatus();
+      } catch (_) {}
+    });
+
+    async function init() {
+      checkOAuthParams();
+      try {
+        await loadAccounts();
+      } catch (e) {
+        accountsList.innerHTML = '<div class="toast" style="position:static;margin:12px;">Ошибка: ' + escapeHtml(e.message) + (e.message && e.message.indexOf('license') !== -1 ? '. <a href="/" style="color:var(--accent);">Обновить страницу</a>' : '') + '</div>';
+      }
+      try {
+        await loadChannel();
+      } catch (e) {
+        channelBadge.textContent = '?';
+        showError('Канал: ' + (e.message || 'ошибка'));
+      }
+      setInterval(loadAccounts, 30000);
+      setInterval(async () => { await loadRunners(); refreshRunnerStatesInDOM(); }, 5000);
+      setInterval(refreshLastUpdate, 10000);
+    }
+    init();
+  </script>
+</body>
+</html>

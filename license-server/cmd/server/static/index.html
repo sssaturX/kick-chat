@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>License Server API</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 20px; background: #111; color: #eee; }
+    h1 { font-size: 1.25rem; margin-bottom: 16px; }
+    section { margin-bottom: 24px; padding: 16px; background: #1a1a1a; border-radius: 8px; }
+    section h2 { font-size: 0.9375rem; margin: 0 0 12px; color: #a78bfa; }
+    label { display: block; font-size: 0.75rem; color: #888; margin-bottom: 4px; }
+    input, textarea { width: 100%; padding: 8px 10px; margin-bottom: 10px; border: 1px solid #333; border-radius: 6px; background: #222; color: #eee; font-size: 0.875rem; }
+    button { padding: 8px 16px; border: none; border-radius: 6px; background: #7c3aed; color: #fff; font-weight: 500; cursor: pointer; font-size: 0.875rem; }
+    button:hover { background: #6d28d9; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .row input { width: auto; min-width: 180px; flex: 1; margin-bottom: 0; }
+    .out { margin-top: 12px; padding: 12px; background: #0a0a0a; border-radius: 6px; font-family: ui-monospace, monospace; font-size: 0.8125rem; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow: auto; }
+    .out.ok { border-left: 3px solid #22c55e; }
+    .out.err { border-left: 3px solid #ef4444; }
+    .global { margin-bottom: 20px; padding: 12px; background: #1a1a1a; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>License Server — тест API <span style="color:#666;font-size:0.6em;">(логи v1)</span></h1>
+  <div class="global">
+    <label>Admin API Key (для /admin/*)</label>
+    <input type="text" id="adminKey" placeholder="admin-secret или значение из .env ADMIN_API_KEY" autocomplete="off">
+    <p style="font-size:0.75rem; color:#888; margin:6px 0 0;">Docker без .env → <code>admin-secret</code>. Локально с .env → значение <code>ADMIN_API_KEY</code> (без пробелов в начале/конце).</p>
+  </div>
+
+  <section>
+    <h2>GET /health</h2>
+    <button type="button" onclick="callHealth()">Отправить</button>
+    <pre class="out" id="outHealth"></pre>
+  </section>
+
+  <section>
+    <h2>POST /activate</h2>
+    <label>license_key</label>
+    <input type="text" id="actKey" placeholder="XXXX-XXXX-XXXX">
+    <label>hwid (опционально)</label>
+    <input type="text" id="actHwid" placeholder="machine_fingerprint">
+    <button type="button" onclick="callActivate()">Отправить</button>
+    <pre class="out" id="outActivate"></pre>
+  </section>
+
+  <section>
+    <h2>POST /validate</h2>
+    <label>license_key</label>
+    <input type="text" id="valKey" placeholder="XXXX-XXXX-XXXX">
+    <label>hwid (опционально)</label>
+    <input type="text" id="valHwid" placeholder="machine_fingerprint">
+    <button type="button" onclick="callValidate()">Отправить</button>
+    <pre class="out" id="outValidate"></pre>
+  </section>
+
+  <section>
+    <h2>POST /admin/licenses (создать ключ)</h2>
+    <label>license_key</label>
+    <input type="text" id="createKey" placeholder="XXXX-XXXX-XXXX">
+    <label>expires_at (RFC3339)</label>
+    <input type="text" id="createExp" placeholder="2026-12-31T23:59:59Z" value="2026-12-31T23:59:59Z">
+    <label>max_activations (по умолчанию 1)</label>
+    <input type="number" id="createMax" placeholder="1" value="1" min="1">
+    <button type="button" onclick="callCreate()">Отправить</button>
+    <pre class="out" id="outCreate"></pre>
+  </section>
+
+  <section>
+    <h2>POST /admin/activate (включить ключ / продлить)</h2>
+    <label>license_key</label>
+    <input type="text" id="adminActKey" placeholder="XXXX-XXXX-XXXX">
+    <label>expires_at (RFC3339)</label>
+    <input type="text" id="adminActExp" placeholder="2026-12-31T23:59:59Z">
+    <button type="button" onclick="callAdminActivate()">Отправить</button>
+    <pre class="out" id="outAdminActivate"></pre>
+  </section>
+
+  <section>
+    <h2>POST /admin/revoke (отозвать ключ)</h2>
+    <label>license_key</label>
+    <div class="row">
+      <input type="text" id="revokeKey" placeholder="XXXX-XXXX-XXXX">
+      <button type="button" onclick="callRevoke()">Отправить</button>
+    </div>
+    <pre class="out" id="outRevoke"></pre>
+  </section>
+
+  <section>
+    <h2>Логи запросов (только для админа)</h2>
+    <p style="font-size:0.8rem; color:#888; margin:0 0 10px;">Введите Admin API Key вверху страницы, затем нажмите «Обновить». Если открываете <code>/admin/logs</code> в новой вкладке — добавьте в URL: <code>?admin_key=ВАШ_КЛЮЧ</code></p>
+    <div class="row" style="align-items: center; margin-bottom: 10px;">
+      <button type="button" onclick="loadLogs()">Обновить</button>
+      <label style="display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer;">
+        <input type="checkbox" id="logsAutoRefresh"> авто-обновление каждые 5 сек
+      </label>
+    </div>
+    <pre class="out" id="outLogs" style="max-height: 320px; font-size: 0.75rem;">Нажмите «Обновить» (нужен Admin API Key)</pre>
+  </section>
+
+  <script>
+    function out(id, text, isErr) {
+      var el = document.getElementById(id);
+      el.textContent = text || '(пусто)';
+      el.className = 'out ' + (isErr ? 'err' : 'ok');
+    }
+    function headers() {
+      var h = { 'Content-Type': 'application/json' };
+      var key = document.getElementById('adminKey').value.trim();
+      if (key) h['X-Admin-API-Key'] = key;
+      return h;
+    }
+    function callHealth() {
+      fetch('/health').then(function(r) { return r.json().then(function(j) { return [r.status, j]; }); })
+        .then(function([status, j]) { out('outHealth', status + '\n' + JSON.stringify(j, null, 2), status >= 400); })
+        .catch(function(e) { out('outHealth', e.message, true); });
+    }
+    function callActivate() {
+      var key = document.getElementById('actKey').value.trim();
+      if (!key) { out('outActivate', 'Введите license_key', true); return; }
+      fetch('/activate', { method: 'POST', headers: headers(), body: JSON.stringify({ license_key: key, hwid: document.getElementById('actHwid').value.trim() }) })
+        .then(function(r) { return r.text().then(function(t) { return [r.status, t]; }); })
+        .then(function([status, t]) {
+          try { var j = JSON.parse(t); t = status + '\n' + JSON.stringify(j, null, 2); } catch(_) { t = status + '\n' + t; }
+          out('outActivate', t, status >= 400);
+        })
+        .catch(function(e) { out('outActivate', e.message, true); });
+    }
+    function callValidate() {
+      var key = document.getElementById('valKey').value.trim();
+      if (!key) { out('outValidate', 'Введите license_key', true); return; }
+      fetch('/validate', { method: 'POST', headers: headers(), body: JSON.stringify({ license_key: key, hwid: document.getElementById('valHwid').value.trim() }) })
+        .then(function(r) { return r.text().then(function(t) { return [r.status, t]; }); })
+        .then(function([status, t]) {
+          try { var j = JSON.parse(t); t = status + '\n' + JSON.stringify(j, null, 2); } catch(_) { t = status + '\n' + t; }
+          out('outValidate', t, status >= 400);
+        })
+        .catch(function(e) { out('outValidate', e.message, true); });
+    }
+    function callCreate() {
+      var key = document.getElementById('createKey').value.trim();
+      var exp = document.getElementById('createExp').value.trim();
+      if (!key || !exp) { out('outCreate', 'Введите license_key и expires_at', true); return; }
+      var max = parseInt(document.getElementById('createMax').value, 10) || 1;
+      fetch('/admin/licenses', { method: 'POST', headers: headers(), body: JSON.stringify({ license_key: key, expires_at: exp, max_activations: max }) })
+        .then(function(r) { return r.text().then(function(t) { return [r.status, t]; }); })
+        .then(function([status, t]) {
+          try { var j = JSON.parse(t); t = status + '\n' + JSON.stringify(j, null, 2); } catch(_) { t = status + '\n' + t; }
+          out('outCreate', t, status >= 400);
+        })
+        .catch(function(e) { out('outCreate', e.message, true); });
+    }
+    function callAdminActivate() {
+      var key = document.getElementById('adminActKey').value.trim();
+      var exp = document.getElementById('adminActExp').value.trim();
+      if (!key || !exp) { out('outAdminActivate', 'Введите license_key и expires_at', true); return; }
+      fetch('/admin/activate', { method: 'POST', headers: headers(), body: JSON.stringify({ license_key: key, expires_at: exp }) })
+        .then(function(r) { return r.text().then(function(t) { return [r.status, t]; }); })
+        .then(function([status, t]) {
+          try { var j = JSON.parse(t); t = status + '\n' + JSON.stringify(j, null, 2); } catch(_) { t = status + '\n' + t; }
+          out('outAdminActivate', t, status >= 400);
+        })
+        .catch(function(e) { out('outAdminActivate', e.message, true); });
+    }
+    function callRevoke() {
+      var key = document.getElementById('revokeKey').value.trim();
+      if (!key) { out('outRevoke', 'Введите license_key', true); return; }
+      fetch('/admin/revoke', { method: 'POST', headers: headers(), body: JSON.stringify({ license_key: key }) })
+        .then(function(r) { return r.text().then(function(t) { return [r.status, t]; }); })
+        .then(function([status, t]) {
+          try { var j = JSON.parse(t); t = status + '\n' + JSON.stringify(j, null, 2); } catch(_) { t = status + '\n' + t; }
+          out('outRevoke', t, status >= 400);
+        })
+        .catch(function(e) { out('outRevoke', e.message, true); });
+    }
+
+    function loadLogs() {
+      var key = document.getElementById('adminKey').value.trim();
+      if (!key) {
+        document.getElementById('outLogs').textContent = 'Укажите Admin API Key выше и нажмите Обновить.';
+        document.getElementById('outLogs').className = 'out err';
+        return;
+      }
+      fetch('/admin/logs', { headers: headers() })
+        .then(function(r) {
+          if (r.status === 401) {
+            return r.json().then(function(j) {
+              throw new Error('401: ' + (j.error || 'Неверный ключ') + '. Проверьте Admin API Key (как в .env ADMIN_API_KEY).');
+            });
+          }
+          if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+          return r.json();
+        })
+        .then(function(data) {
+          var lines = data.lines || [];
+          document.getElementById('outLogs').textContent = lines.length ? lines.join('\n') : '(пока нет записей)';
+          document.getElementById('outLogs').className = 'out ok';
+        })
+        .catch(function(e) {
+          document.getElementById('outLogs').textContent = e.message || 'Ошибка загрузки логов';
+          document.getElementById('outLogs').className = 'out err';
+        });
+    }
+
+    var logsRefreshTimer = null;
+    document.getElementById('logsAutoRefresh').addEventListener('change', function() {
+      if (this.checked) {
+        loadLogs();
+        logsRefreshTimer = setInterval(loadLogs, 5000);
+      } else {
+        if (logsRefreshTimer) clearInterval(logsRefreshTimer);
+        logsRefreshTimer = null;
+      }
+    });
+  </script>
+</body>
+</html>

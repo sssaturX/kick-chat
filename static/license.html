@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>License Required — Kick Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0a0a0c;
+      --bg-panel: #121214;
+      --border: #2a2a2e;
+      --text: #f4f4f5;
+      --text-muted: #71717a;
+      --accent: #9147ff;
+      --accent-hover: #7c3aed;
+      --accent-dim: rgba(145, 71, 255, 0.15);
+      --error: #ef4444;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Outfit', system-ui, sans-serif;
+      background: var(--bg-base);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 32px;
+      max-width: 420px;
+      width: 100%;
+    }
+    h1 {
+      font-size: 1.25rem;
+      margin: 0 0 8px 0;
+      background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    p.sub {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin: 0 0 24px 0;
+    }
+    label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--text-muted);
+    }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-base);
+      color: var(--text);
+      margin-bottom: 20px;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .error {
+      color: var(--error);
+      font-size: 0.875rem;
+      margin-top: 12px;
+    }
+    .success {
+      color: #22c55e;
+      font-size: 0.875rem;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Kick Chat</h1>
+    <p class="sub">Enter your license key to access the dashboard.</p>
+    <form id="form">
+      <label for="key">License key</label>
+      <input type="text" id="key" name="license_key" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" required>
+      <button type="submit" id="btn">Activate</button>
+    </form>
+    <div id="msg"></div>
+  </div>
+  <script>
+    var form = document.getElementById('form');
+    var key = document.getElementById('key');
+    var btn = document.getElementById('btn');
+    var msg = document.getElementById('msg');
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      msg.textContent = '';
+      msg.className = '';
+      btn.disabled = true;
+      fetch('/license/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ license_key: key.value.trim() })
+      })
+      .then(function(r) {
+        if (r.ok) {
+          msg.textContent = 'License activated. Reloading…';
+          msg.className = 'success';
+          setTimeout(function() { window.location.href = '/'; }, 800);
+          return;
+        }
+        return r.text().then(function(t) { throw new Error(t || r.status); });
+      })
+      .catch(function(err) {
+        msg.textContent = err.message || 'Activation failed';
+        msg.className = 'error';
+        btn.disabled = false;
+      });
+    });
+  </script>
+</body>
+</html>

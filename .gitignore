@@ -1,0 +1,12 @@
+.env
+.kick_access_token
+.kick_accounts.json
+.kick_proxies
+
+# Landing (Next.js)
+landing/node_modules/
+landing/.next/
+landing/out/
+
+# Dashboard
+dashboard/node_modules/
