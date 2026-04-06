@@ -1,30 +1,31 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>License Required — Kick Chat</title>
+  <title>License required — SaturX</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-base: #0a0a0c;
-      --bg-panel: #121214;
-      --border: #2a2a2e;
-      --text: #f4f4f5;
-      --text-muted: #71717a;
-      --accent: #9147ff;
-      --accent-hover: #7c3aed;
-      --accent-dim: rgba(145, 71, 255, 0.15);
-      --error: #ef4444;
-      --radius: 12px;
+      --bg-base: #0f0f0f;
+      --bg-panel: #18181b;
+      --border: #2d2d32;
+      --text: #efeff1;
+      --text-muted: #adadb8;
+      --accent: #53fc18;
+      --accent-hover: #6fff2e;
+      --accent-dim: rgba(83, 252, 24, 0.15);
+      --error: #eb0400;
+      --radius: 10px;
+      --radius-sm: 6px;
       --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: 'Outfit', system-ui, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-base);
       color: var(--text);
       min-height: 100vh;
@@ -32,6 +33,7 @@
       align-items: center;
       justify-content: center;
       padding: 24px;
+      -webkit-font-smoothing: antialiased;
     }
     .card {
       background: var(--bg-panel);
@@ -43,12 +45,11 @@
       width: 100%;
     }
     h1 {
-      font-size: 1.25rem;
+      font-size: 1.5rem;
+      font-weight: 700;
       margin: 0 0 8px 0;
-      background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      letter-spacing: -0.02em;
+      color: var(--accent);
     }
     p.sub {
       color: var(--text-muted);
@@ -67,25 +68,31 @@
       padding: 12px 14px;
       font-size: 1rem;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       background: var(--bg-base);
       color: var(--text);
       margin-bottom: 20px;
+      font-family: inherit;
+      transition: border-color 0.2s;
     }
     input:focus {
       outline: none;
       border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-dim);
     }
+    input::placeholder { color: var(--text-muted); opacity: 0.7; }
     button {
       width: 100%;
       padding: 14px;
       font-size: 1rem;
       font-weight: 600;
-      color: #fff;
+      color: #0f0f0f;
       background: var(--accent);
       border: none;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
     }
     button:hover { background: var(--accent-hover); }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -95,15 +102,54 @@
       margin-top: 12px;
     }
     .success {
-      color: #22c55e;
+      color: var(--accent);
       font-size: 0.875rem;
       margin-top: 12px;
+    }
+    .contact {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+    .contact p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin: 0 0 14px 0;
+    }
+    .contact-links {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .contact-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-dim);
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: background 0.2s, color 0.2s;
+    }
+    .contact-links a:hover {
+      background: rgba(83, 252, 24, 0.25);
+      color: var(--accent-hover);
+    }
+    .contact-links svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
     }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>Kick Chat</h1>
+    <h1>SaturX</h1>
     <p class="sub">Enter your license key to access the dashboard.</p>
     <form id="form">
       <label for="key">License key</label>
@@ -111,12 +157,32 @@
       <button type="submit" id="btn">Activate</button>
     </form>
     <div id="msg"></div>
+    <div class="contact">
+      <p>Need a key or support?</p>
+      <div class="contact-links">
+        <a href="https://t.me/pump1sss" target="_blank" rel="noopener noreferrer" title="Telegram">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+          Telegram
+        </a>
+        <a href="https://github.com/pump1sss" target="_blank" rel="noopener noreferrer" title="GitHub">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
   </div>
   <script>
     var form = document.getElementById('form');
     var key = document.getElementById('key');
     var btn = document.getElementById('btn');
     var msg = document.getElementById('msg');
+    (function() {
+      var p = new URLSearchParams(location.search);
+      if (p.get('oauth') === 'need_license') {
+        var sub = document.querySelector('.sub');
+        if (sub) sub.textContent = 'Enter your license key below. After activation, use "Add account" in the header to connect your Kick account.';
+      }
+    })();
     form.addEventListener('submit', function(e) {
       e.preventDefault();
       msg.textContent = '';

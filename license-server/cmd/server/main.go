@@ -28,6 +28,8 @@ var staticFS embed.FS
 
 func main() {
 	indexHTML, _ := fs.ReadFile(staticFS, "static/index.html")
+	loginHTML, _ := fs.ReadFile(staticFS, "static/admin_login.html")
+	dashHTML, _ := fs.ReadFile(staticFS, "static/admin_dashboard.html")
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
@@ -57,9 +59,10 @@ func main() {
 	actRepo := repository.NewActivationRepository(db)
 	licService := service.NewLicenseService(licRepo, actRepo, redisClient, cfg.HMACSecret, logger)
 	licHandler := handler.NewLicenseHandler(licService, cfg.HMACSecret, logger)
+	adminUI := handler.NewAdminUIHandler(licService, redisClient, cfg.AdminAPIKey, cfg.AdminSessionTTL, cfg.AdminCookieSecure, logger)
 
 	rateLimiter := middleware.NewRateLimiter(redisClient, cfg.RateLimitRPS, logger)
-	adminAuth := middleware.AdminAuth(cfg.AdminAPIKey)
+	adminAuth := middleware.AdminAuth(cfg.AdminAPIKey, redisClient)
 
 	logBuf := logbuffer.New(500)
 
@@ -68,11 +71,28 @@ func main() {
 	router.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
 
 	router.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusFound, "/admin/dashboard")
+	})
+	router.GET("/dev", func(c *gin.Context) {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
 	})
 	router.GET("/index.html", func(c *gin.Context) {
-		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
+		c.Redirect(http.StatusFound, "/dev")
 	})
+
+	router.GET("/admin", func(c *gin.Context) {
+		c.Redirect(http.StatusFound, "/admin/dashboard")
+	})
+	router.GET("/admin/login", func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html; charset=utf-8", loginHTML)
+	})
+	router.GET("/admin/dashboard", middleware.AdminHTMLAuth(cfg.AdminAPIKey, redisClient), func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html; charset=utf-8", dashHTML)
+	})
+
+	sessLogin := router.Group("/admin/api/session")
+	sessLogin.Use(middleware.LoginRateLimit(redisClient, 5, time.Minute, logger))
+	sessLogin.POST("/login", adminUI.Login)
 
 	api := router.Group("")
 	api.Use(rateLimiter.Middleware())
@@ -82,10 +102,22 @@ func main() {
 		api.POST("/validate", licHandler.Validate)
 	}
 
+	if cfg.DownloadFilePath != "" {
+		dh := handler.NewDownloadHandler(licService, redisClient, cfg.DownloadFilePath, cfg.DownloadFileName, logger)
+		router.GET("/download", dh.PortalPage)
+		dl := router.Group("/download")
+		dl.Use(rateLimiter.Middleware())
+		dl.POST("/verify", dh.Verify)
+		router.GET("/download/file", dh.ServeFile)
+	}
+
 	admin := router.Group("/admin")
 	admin.Use(adminAuth)
 	admin.Use(rateLimiter.Middleware())
 	{
+		admin.POST("/api/session/logout", adminUI.Logout)
+		admin.GET("/api/licenses", adminUI.ListLicenses)
+		admin.POST("/delete", adminUI.DeleteLicense)
 		admin.GET("/logs", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"lines": logBuf.Lines()})
 		})

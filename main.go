@@ -1,9 +1,8 @@
-// Kick Chat — отправка сообщений в чат через OAuth (kick-go-sdk).
+// SaturX — отправка сообщений в чат через OAuth (kick-go-sdk).
 // Регистрация приложения: https://developers.kick.com/
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,7 +12,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -26,7 +27,6 @@ import (
 	"kick-chat-go/internal/viewerbot"
 
 	"github.com/henrikah/kick-go-sdk/v2"
-	"github.com/henrikah/kick-go-sdk/v2/enums/kickscopes"
 	"github.com/henrikah/kick-go-sdk/v2/kickapitypes"
 	"github.com/henrikah/kick-go-sdk/v2/kickcontracts"
 	"github.com/henrikah/kick-go-sdk/v2/kickoauthtypes"
@@ -36,7 +36,7 @@ import (
 // Значения по умолчанию для лицензии — задаются при сборке через -ldflags.
 // Юзеру не нужно прописывать LICENSE_SERVER_URL и LICENSE_HMAC_SECRET в .env.
 var (
-	defaultLicenseServerURL string
+	defaultLicenseServerURL  string
 	defaultLicenseHMACSecret string
 )
 
@@ -44,23 +44,25 @@ func apiClientWithProxy(proxyStr string) *http.Client {
 	return httpFactory.Get(proxyStr)
 }
 
-// statusCodeFromError пытается извлечь HTTP-код из текста ошибки (429, 401, 5xx).
+// httpStatusInError находит первый HTTP-код 4xx/5xx в тексте ошибки (Kick/SDK часто вшивают "403", "400" и т.д.).
+var httpStatusInError = regexp.MustCompile(`\b([45][0-9]{2})\b`)
+
 func statusCodeFromError(err error) int {
 	if err == nil {
 		return 0
 	}
-	s := err.Error()
-	for _, code := range []int{429, 401, 500, 502, 503, 504} {
-		if strings.Contains(s, strconv.Itoa(code)) {
-			return code
-		}
+	m := httpStatusInError.FindStringSubmatch(err.Error())
+	if len(m) < 2 {
+		return 0
 	}
-	return 0
+	c, e := strconv.Atoi(m[1])
+	if e != nil || c < 400 || c > 599 {
+		return 0
+	}
+	return c
 }
 
 var httpFactory *httpclient.Factory
-
-const redirectPath = "/callback"
 
 // Известные короткие коды официальных эмодзи Kick. API иногда отображает их как анимацию только без двоеточий.
 var kickEmojiShortcodes = []string{
@@ -84,6 +86,124 @@ func normalizeKickEmojiContent(content string) string {
 }
 
 const kickTokenURL = "https://id.kick.com/oauth/token"
+
+// mergeKickEnvIntoDotenv writes KICK_CLIENT_ID, KICK_CLIENT_SECRET, CHANNEL_SLUG into .env (replaces existing keys).
+func mergeKickEnvIntoDotenv(clientID, clientSecret, channelSlug string) error {
+	envPath := ".env"
+	data, _ := os.ReadFile(envPath)
+	lines := strings.Split(string(data), "\n")
+	var out []string
+	for _, l := range lines {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, "KICK_CLIENT_ID=") ||
+			strings.HasPrefix(t, "KICK_CLIENT_SECRET=") ||
+			strings.HasPrefix(t, "CHANNEL_SLUG=") {
+			continue
+		}
+		out = append(out, l)
+	}
+	for len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+		out = out[:len(out)-1]
+	}
+	out = append(out, "")
+	out = append(out, "# Kick OAuth (edit in dashboard or here)")
+	out = append(out, "KICK_CLIENT_ID="+clientID)
+	out = append(out, "KICK_CLIENT_SECRET="+clientSecret)
+	out = append(out, "CHANNEL_SLUG="+channelSlug)
+	return os.WriteFile(envPath, []byte(strings.Join(out, "\n")), 0644)
+}
+
+func relaunchSelf() {
+	exe, err := os.Executable()
+	if err != nil {
+		log.Printf("relaunch: %v", err)
+		return
+	}
+	cmd := exec.Command(exe, os.Args[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		log.Printf("relaunch: %v", err)
+		return
+	}
+	os.Exit(0)
+}
+
+// doLicenseRefresh вызывает /license/refresh на сервере. При успехе обновляет хранилище и возвращает true; при отзыве/ошибке — false.
+func doLicenseRefresh(ctx context.Context, licStore *licensestore.Store, licenseServerURL, _ string) bool {
+	payload, err := licStore.Load()
+	if err != nil || payload == nil || payload.RefreshToken == "" || payload.DeviceID == "" {
+		return false
+	}
+	refreshBody, _ := json.Marshal(map[string]string{
+		"refresh_token": payload.RefreshToken,
+		"device_id":     payload.DeviceID,
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, licenseServerURL+"/license/refresh", strings.NewReader(string(refreshBody)))
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+	var ref struct {
+		SignedLicense string `json:"signed_license"`
+		RefreshToken  string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&ref); err != nil || ref.SignedLicense == "" {
+		return false
+	}
+	newRefresh := ref.RefreshToken
+	if newRefresh == "" {
+		newRefresh = payload.RefreshToken
+	}
+	if err := licStore.Save(&licensestore.Payload{
+		LicenseKey:       payload.LicenseKey,
+		SignedLicense:    ref.SignedLicense,
+		RefreshToken:     newRefresh,
+		DeviceID:         payload.DeviceID,
+		LastValidationAt: time.Now().UTC(),
+	}); err != nil {
+		return false
+	}
+	return true
+}
+
+// doLicenseValidate вызывает POST /validate на сервере лицензий. Возвращает true только если status == "active".
+func doLicenseValidate(ctx context.Context, licStore *licensestore.Store, licenseServerURL, deviceFP string) bool {
+	payload, err := licStore.Load()
+	if err != nil || payload == nil || payload.LicenseKey == "" {
+		return false
+	}
+	reqBody, _ := json.Marshal(map[string]string{
+		"license_key": payload.LicenseKey,
+		"hwid":        deviceFP,
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, licenseServerURL+"/validate", strings.NewReader(string(reqBody)))
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Status string `json:"status"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&result)
+	return result.Status == "active"
+}
 
 // refreshAccessToken обменивает refresh_token на новую пару access+refresh. Тот же endpoint, что и code exchange.
 func refreshAccessToken(ctx context.Context, clientID, clientSecret, refreshToken string, httpClient *http.Client) (accessToken, newRefreshToken string, err error) {
@@ -173,7 +293,9 @@ func makeSendFunc(store *accountsStore, factory *httpclient.Factory, ctx context
 		latency := time.Since(start).Nanoseconds()
 		if err != nil {
 			runner.RecordSendFailure()
-			return runner.SendResult{Err: err, StatusCode: statusCodeFromError(err)}
+			code := statusCodeFromError(err)
+			log.Printf("[send] account_id=%d channel=%s broadcaster_id=%d http=%d err=%v", accountID, channelSlug, bid, code, err)
+			return runner.SendResult{Err: err, StatusCode: code}
 		}
 		runner.RecordSendSuccess(latency)
 		return runner.SendResult{}
@@ -182,38 +304,38 @@ func makeSendFunc(store *accountsStore, factory *httpclient.Factory, ctx context
 
 func main() {
 	_ = godotenv.Load()
-	// Логи в файл (не в консоль)
+
+	// Логи только в файл (не в консоль). Файл: LOG_FILE или saturx.log
 	logPath := os.Getenv("LOG_FILE")
 	if logPath == "" {
-		logPath = "kick-chat.log"
+		logPath = "saturx.log"
 	}
 	if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-		log.SetOutput(io.MultiWriter(f, os.Stderr))
+		log.SetOutput(f)
 		log.SetFlags(log.Ldate | log.Ltime)
 	}
 	// при ошибке открытия файла логи остаются в stderr
-	clientID := os.Getenv("KICK_CLIENT_ID")
-	clientSecret := os.Getenv("KICK_CLIENT_SECRET")
-	redirectURI := os.Getenv("KICK_REDIRECT_URI")
-	channelSlug := os.Getenv("CHANNEL_SLUG")
-	if channelSlug == "" {
-		channelSlug = "mlaffonxd"
-	}
-	if clientID == "" || clientSecret == "" {
-		log.Fatal("Set KICK_CLIENT_ID and KICK_CLIENT_SECRET (register app at https://developers.kick.com/)")
-	}
-	if redirectURI == "" {
-		redirectURI = "http://localhost:8765/callback"
+	clientID := strings.TrimSpace(os.Getenv("KICK_CLIENT_ID"))
+	clientSecret := strings.TrimSpace(os.Getenv("KICK_CLIENT_SECRET"))
+	channelSlug := strings.TrimSpace(os.Getenv("CHANNEL_SLUG"))
+
+	kickReady := clientID != "" && clientSecret != "" && channelSlug != ""
+	if !kickReady {
+		log.Println("Kick OAuth not configured — open the dashboard in your browser to enter Client ID, Secret, and channel slug.")
 	}
 
 	ctx := context.Background()
-	oauthClient, err := kick.NewOAuthClient(kickoauthtypes.OAuthClientConfig{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		HTTPClient:   http.DefaultClient,
-	})
-	if err != nil {
-		log.Fatalf("OAuth client: %v", err)
+	var oauthClient kickcontracts.OAuthClient
+	if kickReady {
+		var err error
+		oauthClient, err = kick.NewOAuthClient(kickoauthtypes.OAuthClientConfig{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			HTTPClient:   http.DefaultClient,
+		})
+		if err != nil {
+			log.Fatalf("OAuth client: %v", err)
+		}
 	}
 
 	store := newAccountsStore("")
@@ -240,16 +362,8 @@ func main() {
 			log.Println("Imported token as account 1. Accounts saved to", accountsFile)
 		}
 	}
-	if store.Count() == 0 {
-		accessToken, refreshToken, err := runOAuthFlow(ctx, oauthClient, redirectURI)
-		if err != nil {
-			log.Fatalf("OAuth: %v", err)
-		}
-		store.Add("", accessToken, refreshToken)
-		if err := store.Save(); err != nil {
-			log.Printf("Warning: could not save accounts: %v", err)
-		}
-		log.Println("Account 1 added. Accounts saved to", accountsFile)
+	if store.Count() == 0 && kickReady {
+		log.Println("No Kick accounts yet — add one in the dashboard (Add account).")
 	}
 	// Ensure LastUsed is set if we have accounts
 	if _, _, _, ok := store.Current(); !ok && store.Count() > 0 {
@@ -277,14 +391,16 @@ func main() {
 		return newAccess, nil
 	}
 	// При старте обновляем токены у всех аккаунтов, у которых есть refresh_token
-	for i := 1; i <= store.Count(); i++ {
-		_, refresh, _, _, ok := store.GetAccountByIndex(i)
-		if ok && refresh != "" {
-			if _, err := refreshFunc(i); err == nil {
-				// уже залогировано в refreshFunc
-			}
-			if i < store.Count() {
-				time.Sleep(300 * time.Millisecond)
+	if oauthClient != nil {
+		for i := 1; i <= store.Count(); i++ {
+			_, refresh, _, _, ok := store.GetAccountByIndex(i)
+			if ok && refresh != "" {
+				if _, err := refreshFunc(i); err == nil {
+					// уже залогировано в refreshFunc
+				}
+				if i < store.Count() {
+					time.Sleep(300 * time.Millisecond)
+				}
 			}
 		}
 	}
@@ -323,56 +439,65 @@ func main() {
 			if verifyErr != nil {
 				log.Printf("License verify: %v", verifyErr)
 				_ = licStore.Delete()
-			} else if time.Since(payload.LastValidationAt) < 7*24*time.Hour {
-				gate.SetValid(true)
 			} else {
-				// Refresh
-				refreshBody, _ := json.Marshal(map[string]string{
-					"refresh_token": payload.RefreshToken,
-					"device_id":     payload.DeviceID,
-				})
-				req, err := http.NewRequestWithContext(ctx, http.MethodPost, licenseServerURL+"/license/refresh", strings.NewReader(string(refreshBody)))
-				if err == nil {
-					req.Header.Set("Content-Type", "application/json")
-					resp, err := http.DefaultClient.Do(req)
-					if err == nil {
-						var ref struct {
-							SignedLicense string `json:"signed_license"`
-							RefreshToken  string `json:"refresh_token"`
-						}
-						_ = json.NewDecoder(resp.Body).Decode(&ref)
-						resp.Body.Close()
-						if resp.StatusCode == http.StatusOK && ref.SignedLicense != "" {
-							newRefresh := ref.RefreshToken
-							if newRefresh == "" {
-								newRefresh = payload.RefreshToken
-							}
-							if err := licStore.Save(&licensestore.Payload{
-								SignedLicense:    ref.SignedLicense,
-								RefreshToken:     newRefresh,
-								DeviceID:         payload.DeviceID,
-								LastValidationAt: time.Now().UTC(),
-							}); err == nil {
-								gate.SetValid(true)
-							}
-						}
-					}
-				}
-				if !gate.Valid() {
-					log.Println("License refresh failed or expired; re-activate in dashboard")
+				// Всегда проверяем лицензию на сервере при старте (отзыв админом = отказ доступа)
+				if doLicenseRefresh(ctx, licStore, licenseServerURL, licenseHMACSecret) {
+					gate.SetValid(true)
+				} else {
+					log.Println("License refresh failed or revoked; re-activate in dashboard")
 				}
 			}
 		}
 	} else {
-		// Обхода нет: без LICENSE_SERVER_URL доступ закрыт, показываем экран ввода ключа
+		// Без LICENSE_SERVER_URL доступ закрыт (или SKIP_LICENSE=1 для теста)
 		gate = &licenseGate{}
-		// gate.Valid() остаётся false — дашборд и API заблокированы
+	}
+	skipLicense := os.Getenv("SKIP_LICENSE") == "1" || strings.ToLower(strings.TrimSpace(os.Getenv("SKIP_LICENSE"))) == "true"
+	if skipLicense {
+		gate.SetValid(true)
+		log.Println("Test mode: SKIP_LICENSE=1 — license checks disabled")
+	}
+	// При старте без валидной лицензии не работаем: останавливаем раннеры (они уже созданы выше)
+	if licenseServerURL != "" && gate != nil && !gate.Valid() && !skipLicense {
+		manager.Stop()
 	}
 	vb := viewerbot.New()
 	go runWebServer(ctx, store, channelSlug, dashboardPort, manager, vb, oauthClient, clientID, clientSecret, func() {
 		time.Sleep(200 * time.Millisecond)
 		os.Exit(0)
 	}, gate, licStore, licenseServerURL, licenseHMACSecret, deviceFP)
+
+	// При каждом запуске открываем дашборд в браузере после поднятия веб-сервера.
+	go func() {
+		time.Sleep(650 * time.Millisecond)
+		minimizeConsoleIfPossible()
+		openDashboardBrowser("http://localhost:" + dashboardPort)
+	}()
+
+	// Периодическая проверка лицензии: при отзыве останавливаем раннеры и viewerbot
+	if !skipLicense && licenseServerURL != "" && gate != nil && licStore != nil && deviceFP != "" {
+		go func() {
+			ticker := time.NewTicker(2 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if !gate.Valid() {
+						continue
+					}
+					if doLicenseValidate(ctx, licStore, licenseServerURL, deviceFP) {
+						continue
+					}
+					gate.SetValid(false)
+					manager.Stop()
+					vb.Stop()
+					log.Println("License revoked or expired. Runners and viewerbot stopped. Activate a key again in the dashboard.")
+				}
+			}
+		}()
+	}
 
 	accessToken, _, proxy, _ := store.Current()
 	resolveChannel := func(token, proxyStr string) int {
@@ -395,7 +520,7 @@ func main() {
 		if err != nil && proxyStr != "" && isNetworkOrProxyError(err) {
 			id, _ = try("")
 			if id != 0 {
-				log.Printf("Прокси недоступен, использовано обычное соединение")
+				log.Printf("Proxy unreachable, using direct connection")
 			}
 		}
 		return id
@@ -414,7 +539,7 @@ func main() {
 				accessToken, _, proxy, _ = store.Current()
 				broadcasterUserID = resolveChannel(accessToken, proxy)
 				if broadcasterUserID != 0 {
-					log.Printf("Токен обновлён по refresh. Channel %s -> broadcaster_user_id=%d", channelSlug, broadcasterUserID)
+					log.Printf("Token refreshed. Channel %s -> broadcaster_user_id=%d", channelSlug, broadcasterUserID)
 				}
 			}
 		}
@@ -422,128 +547,15 @@ func main() {
 	if broadcasterUserID != 0 {
 		log.Printf("Channel %s -> broadcaster_user_id=%d", channelSlug, broadcasterUserID)
 	} else {
-		log.Println("Текущий аккаунт не авторизован (401) или канал не найден. Выберите аккаунт в дашборде или добавьте: add")
+		log.Println("Current account unauthorized (401) or channel not found. Pick an account in the dashboard or add one (Add account).")
 	}
 
 	_, currentName, _, _ := store.Current()
 	if currentName != "" {
-		log.Printf("В дашборде выбран аккаунт: %s", currentName)
+		log.Printf("Dashboard selected account: %s", currentName)
 	}
-	fmt.Println("Команды: add — добавить аккаунт, quit — выход. Выбор аккаунта — в дашборде.")
-	scanner := bufio.NewScanner(os.Stdin)
-loop:
-	for {
-		fmt.Print("> ")
-		if !scanner.Scan() {
-			break
-		}
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		lower := strings.ToLower(line)
-		// Выход разрешён без лицензии; остальное — только с валидной лицензией
-		if lower != "!quit" && lower != "quit" && (licenseServerURL == "" || gate == nil || !gate.Valid()) {
-			fmt.Println("Требуется лицензия. Откройте http://localhost:" + dashboardPort + " в браузере и введите ключ.")
-			continue
-		}
-		switch {
-		case lower == "!quit" || lower == "quit":
-			break loop
-		case lower == "add":
-			accessToken, refreshToken, err := runOAuthFlow(ctx, oauthClient, redirectURI)
-			if err != nil {
-				log.Printf("OAuth failed: %v", err)
-				continue
-			}
-			idx, _ := store.Add("", accessToken, refreshToken)
-			if err := store.Save(); err != nil {
-				log.Printf("Warning: could not save: %v", err)
-			}
-			_, name, _, _ := store.Current()
-			log.Printf("Added account %d: %s", idx, name)
-			tok, _, prox, _ := store.Current()
-			if id := resolveChannel(tok, prox); id != 0 {
-				broadcasterUserID = id
-				log.Printf("Channel %s -> broadcaster_user_id=%d", channelSlug, broadcasterUserID)
-			}
-			continue
-		}
-		accessToken, _, proxy, _ := store.Current()
-		if broadcasterUserID == 0 {
-			broadcasterUserID = resolveChannel(accessToken, proxy)
-			if broadcasterUserID == 0 {
-				log.Println("Токен не подходит (401). Выберите аккаунт в дашборде или добавьте: add")
-				continue
-			}
-			log.Printf("Channel %s -> broadcaster_user_id=%d", channelSlug, broadcasterUserID)
-		}
-		var currentNum int
-		for _, a := range store.List() {
-			if a.Current {
-				currentNum = a.Num
-				break
-			}
-		}
-		if currentNum == 0 {
-			log.Println("Нет выбранного аккаунта")
-			continue
-		}
-		ok, reason := manager.Send(currentNum, line)
-		if !ok {
-			log.Printf("Send rejected: %s", reason)
-			continue
-		}
-		log.Println("Queued.")
-	}
-	if err := scanner.Err(); err != nil {
-		log.Printf("Read: %v", err)
-	}
-}
-
-func runOAuthFlow(ctx context.Context, oauthClient kickcontracts.OAuthClient, redirectURI string) (accessToken, refreshToken string, err error) {
-	scopes := kickscopes.Scopes{kickscopes.ChannelRead, kickscopes.ChatWrite}
-	state := "kick-chat-go-state"
-	data, err := oauthClient.InitiateAuthorization(redirectURI, state, scopes)
-	if err != nil {
-		return "", "", fmt.Errorf("initiate auth: %w", err)
-	}
-
-	fmt.Println("Ссылка для получения access token:")
-	fmt.Println(data.AuthorizationURL)
-	fmt.Println("Откройте в браузере, войдите в Kick и разрешите доступ.")
-	fmt.Println()
-
-	codeCh := make(chan string, 1)
-	mux := http.NewServeMux()
-	mux.HandleFunc(redirectPath, func(w http.ResponseWriter, r *http.Request) {
-		code := r.URL.Query().Get("code")
-		if code == "" {
-			http.Error(w, "missing code", 400)
-			return
-		}
-		codeCh <- code
-		_, _ = w.Write([]byte("<p>OK. You can close this tab and return to the terminal.</p>"))
-	})
-	server := &http.Server{Addr: ":8765", Handler: mux}
-	go func() {
-		_ = server.ListenAndServe()
-	}()
-	defer func() { _ = server.Shutdown(context.Background()) }()
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	var code string
-	select {
-	case code = <-codeCh:
-		break
-	case <-sigCh:
-		return "", "", fmt.Errorf("cancelled")
-	}
-
-	tokenResp, err := oauthClient.ExchangeAuthorizationCode(ctx, redirectURI, code, data.PKCEVerifier)
-	if err != nil {
-		return "", "", fmt.Errorf("exchange code: %w", err)
-	}
-	return tokenResp.AccessToken, tokenResp.RefreshToken, nil
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	<-sigCh
 }

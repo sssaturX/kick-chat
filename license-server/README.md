@@ -65,7 +65,8 @@ Production-ready License Server для desktop-приложения (Go 1.22+, G
 - `DATABASE_URL` — подключение к Postgres
 - `REDIS_URL` — подключение к Redis (по умолчанию `redis://localhost:6379/0`)
 - `HMAC_SECRET` — секрет для подписи ответов (минимум 32 символа)
-- `ADMIN_API_KEY` — ключ для admin-эндпоинтов (заголовок `X-Admin-API-Key`)
+- `ADMIN_API_KEY` — ключ для admin-эндпоинтов (заголовок `X-Admin-API-Key`) и входа в `/admin/login`
+- опционально `ADMIN_SESSION_TTL` (например `24h`), `ADMIN_COOKIE_SECURE` (`true` за reverse proxy с HTTPS)
 
 ## Запуск локально
 
@@ -74,9 +75,25 @@ Production-ready License Server для desktop-приложения (Go 1.22+, G
 go run ./cmd/server
 ```
 
-Сервер слушает порт из `PORT` (по умолчанию 8000). В браузере открой **http://localhost:8000** — там форма для теста всех API (health, activate, validate, создание ключа, revoke, admin activate).
+Сервер слушает порт из `PORT` (по умолчанию 8000). В браузере: **`/`** → редирект на **дашборд** (`/admin/dashboard`); страница ручного теста API — **`/dev`** (health, activate, validate, админ-запросы, логи).
+
+## Админ-панель (веб)
+
+- **`GET /admin/login`** — форма входа по **Admin API Key** (тот же, что `ADMIN_API_KEY`).
+- После входа выдаётся **HttpOnly**-cookie `admin_session`, сессия хранится в **Redis** (TTL задаётся `ADMIN_SESSION_TTL`, по умолчанию 24h).
+- **`GET /admin/dashboard`** — таблица всех ключей, создание, продление, отзыв, удаление.
+- **`POST /admin/api/session/login`** — JSON `{"api_key":"..."}` (лимит попыток с одного IP).
+- **`POST /admin/api/session/logout`** — выход (нужна сессия или заголовок `X-Admin-API-Key`).
+- **`GET /admin/api/licenses`** — JSON со списком лицензий.
+- **`POST /admin/delete`** — JSON `{"license_key":"..."}` — безвозвратное удаление строки и активаций.
+
+Все **`/admin/*`** (кроме `GET /admin/login` и `POST /admin/api/session/login`) принимают либо **cookie сессии**, либо заголовок **`X-Admin-API-Key`** (для скриптов и страницы теста API). Передача ключа в query string **не поддерживается**.
+
+За HTTPS на проде включите **`ADMIN_COOKIE_SECURE=true`**.
 
 ## Docker
+
+Полный чеклист передеплоя на VPS (бэкап БД, сборка, HTTPS, портал скачивания): **[DEPLOY-VPS.md](./DEPLOY-VPS.md)**.
 
 ```bash
 docker-compose up -d
@@ -86,6 +103,20 @@ docker-compose up -d
 
 **Не открывается http://localhost:8000?** Проверь логи приложения: `docker-compose logs app`. Если контейнер падает (нет в `docker ps`), смотри вывод — часто это ошибка подключения к БД или отсутствующий `HMAC_SECRET`/`ADMIN_API_KEY`. Убедись, что в каталоге с `docker-compose.yml` есть `.env` с нужными переменными или что дефолты в compose подходят. Затем снова запусти: `docker-compose up -d` и открой в браузере **http://127.0.0.1:8000** (или http://localhost:8000).
 
+## Портал скачивания (опционально)
+
+Если заданы **`DOWNLOAD_FILE_PATH`** и **`DOWNLOAD_FILE_NAME`** в `.env`:
+
+- **`GET /download`** — страница: пользователь вводит **license key**, после проверки получает **одноразовую** ссылку на файл.
+- **`POST /download/verify`** — JSON `{"license_key":"..."}`; при статусе `active` ответ содержит `download_path` (относительный URL).
+- **`GET /download/file?token=...`** — отдаёт архив; токен удаляется из Redis после использования (TTL несколько минут).
+
+Проверка ключа — та же логика, что **`POST /validate`** (пустой `hwid`). Старые ключи с привязанным **HWID** в БД через портал могут не пройти — тогда продлевать/выдавать через бота.
+
+Проксируй субдомен (например `software.saturx.store`) на этот сервис; в Telegram-боте в **`SOFTWARE_DOWNLOAD_URL`** укажи `https://software.saturx.store/download`.
+
+Файл для раздачи клади в каталог **`releases/`** рядом с `docker-compose` (см. **`releases/README.md`**): в Compose он монтируется в контейнер как `/data/releases`.
+
 ## API
 
 - **POST /activate** — активация ключа (license_key, hwid). Ответ: status, expires_at, server_time, signature (HMAC).
@@ -93,7 +124,10 @@ docker-compose up -d
 - **POST /admin/revoke** — отзыв ключа (тело: license_key). Заголовок: `X-Admin-API-Key`.
 - **POST /admin/activate** — включение ключа и продление (license_key, expires_at). Заголовок: `X-Admin-API-Key`.
 - **POST /admin/licenses** — создание ключа. Тело: `license_key`, `expires_at` (RFC3339), `max_activations` (опционально, по умолчанию 1). Заголовок: `X-Admin-API-Key`. Ответ: id, license_key, expires_at, max_activations.
+- **GET /admin/api/licenses** — список всех лицензий (JSON). Аутентификация: `X-Admin-API-Key` или сессия после `/admin/login`.
+- **POST /admin/delete** — удаление ключа и активаций (тело: `license_key`). Аутентификация как выше.
 - **GET /health** — проверка работы сервера.
+- **GET /download**, **POST /download/verify**, **GET /download/file** — см. раздел «Портал скачивания» (если настроен `DOWNLOAD_FILE_PATH`).
 
 ## Создание ключа (пример)
 

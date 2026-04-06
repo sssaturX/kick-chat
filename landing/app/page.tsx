@@ -10,7 +10,7 @@ import Footer from './components/Footer'
 export default function Home() {
   return (
     <div className="min-h-screen w-full">
-      <div className="h-1 bg-saturx-purple" aria-hidden />
+      <div className="h-1 bg-saturx-green" aria-hidden />
       <Header />
       <main>
         <Hero />

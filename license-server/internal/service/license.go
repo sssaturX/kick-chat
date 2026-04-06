@@ -262,6 +262,33 @@ func (s *LicenseService) AdminActivate(ctx context.Context, key string, expiresA
 	return s.licRepo.Update(ctx, lic)
 }
 
+// ListLicenses returns all licenses (admin dashboard).
+func (s *LicenseService) ListLicenses(ctx context.Context) ([]models.License, error) {
+	return s.licRepo.ListAll(ctx)
+}
+
+// AdminDelete removes a license and its activations; invalidates refresh tokens for that license.
+func (s *LicenseService) AdminDelete(ctx context.Context, key string) error {
+	lic, err := s.licRepo.FindByKey(ctx, key)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrLicenseNotFound
+		}
+		return err
+	}
+	if err := refreshstore.RevokeLicense(ctx, s.refresh, lic.ID); err != nil {
+		s.log.Warn("revoke refresh tokens on delete", zap.Error(err))
+	}
+	if err := s.actRepo.DeleteByLicenseID(ctx, lic.ID); err != nil {
+		return err
+	}
+	if err := s.licRepo.DeleteByKey(ctx, key); err != nil {
+		return err
+	}
+	s.log.Info("license deleted", zap.String("key", key))
+	return nil
+}
+
 func (s *LicenseService) Create(ctx context.Context, licenseKey string, expiresAt time.Time, maxActivations int) (*models.License, error) {
 	if maxActivations <= 0 {
 		maxActivations = 1

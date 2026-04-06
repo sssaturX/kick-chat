@@ -48,3 +48,7 @@ func (r *ActivationRepository) CountByLicenseID(ctx context.Context, licenseID u
 func (r *ActivationRepository) UpdateLastCheckAt(ctx context.Context, a *models.Activation) error {
 	return r.db.WithContext(ctx).Model(a).Update("last_check_at", a.LastCheckAt).Error
 }
+
+func (r *ActivationRepository) DeleteByLicenseID(ctx context.Context, licenseID uuid.UUID) error {
+	return r.db.WithContext(ctx).Unscoped().Where("license_id = ?", licenseID).Delete(&models.Activation{}).Error
+}

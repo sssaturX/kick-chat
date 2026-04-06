@@ -1,40 +1,71 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Kick Chat Dashboard — управление аккаунтами и чатом">
-  <title>Kick Chat Dashboard</title>
+  <meta name="description" content="SaturX Dashboard — accounts and chat">
+  <title>SaturX Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-base: #0a0a0c;
-      --bg-panel: #121214;
-      --bg-elevated: #1a1a1e;
-      --border: #2a2a2e;
-      --border-focus: #3f3f46;
-      --text: #f4f4f5;
-      --text-muted: #71717a;
-      --text-dim: #52525b;
-      --accent: #9147ff;
-      --accent-hover: #7c3aed;
-      --accent-dim: rgba(145, 71, 255, 0.15);
-      --success: #22c55e;
-      --success-dim: rgba(34, 197, 94, 0.2);
-      --error: #ef4444;
-      --error-bg: rgba(239, 68, 68, 0.12);
-      --radius: 12px;
-      --radius-sm: 8px;
-      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      --radius: 10px;
+      --radius-sm: 6px;
       --transition: 0.2s ease;
+      /* Panel widths; dashboard row fills available viewport height */
+      --dashboard-chat-width: 340px;
+      --dashboard-stream-width: 720px;
+      --dashboard-accounts-width: 300px;
+    }
+    /* Kick.com style: dark theme (default) — black/gray bg, green accent */
+    .theme-dark {
+      --bg-base: #0f0f0f;
+      --bg-panel: #18181b;
+      --bg-elevated: #1f1f23;
+      --border: #2d2d32;
+      --border-focus: #3f3f46;
+      --text: #efeff1;
+      --text-muted: #adadb8;
+      --text-dim: #6b6b7b;
+      --accent: #53fc18;
+      --accent-hover: #6fff2e;
+      --accent-dim: rgba(83, 252, 24, 0.15);
+      --success: #53fc18;
+      --success-dim: rgba(83, 252, 24, 0.2);
+      --error: #eb0400;
+      --error-bg: rgba(235, 4, 0, 0.12);
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      --logo-from: #53fc18;
+      --logo-to: #6fff2e;
+    }
+    /* Light variant (Kick-style light) */
+    .theme-light {
+      --bg-base: #efeff1;
+      --bg-panel: #ffffff;
+      --bg-elevated: #f7f7f8;
+      --border: #e0e0e5;
+      --border-focus: #c8c8d0;
+      --text: #0e0e10;
+      --text-muted: #53535f;
+      --text-dim: #8a8a96;
+      --accent: #2ea043;
+      --accent-hover: #3fb950;
+      --accent-dim: rgba(46, 160, 67, 0.12);
+      --success: #2ea043;
+      --success-dim: rgba(46, 160, 67, 0.15);
+      --error: #eb0400;
+      --error-bg: rgba(235, 4, 0, 0.08);
+      --shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      --logo-from: #2ea043;
+      --logo-to: #3fb950;
     }
 
     * { box-sizing: border-box; }
+    html { min-height: 100vh; }
     body {
       margin: 0;
-      font-family: 'Outfit', system-ui, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-base);
       color: var(--text);
       min-height: 100vh;
@@ -43,11 +74,15 @@
 
     .app {
       display: grid;
-      grid-template-columns: 340px 1fr 300px;
-      grid-template-rows: auto 1fr auto;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
       gap: 12px;
+      width: 100%;
+      min-width: 1280px;
       height: 100vh;
       padding: 12px;
+      min-height: 0;
+      box-sizing: border-box;
     }
 
     .header {
@@ -66,7 +101,7 @@
       font-weight: 700;
       font-size: 1.25rem;
       letter-spacing: -0.02em;
-      background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
+      background: linear-gradient(135deg, var(--logo-from) 0%, var(--logo-to) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -92,6 +127,68 @@
       display: flex;
       flex-direction: column;
       box-shadow: var(--shadow);
+      min-height: 0;
+    }
+    .dashboard-row {
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      gap: 0;
+    }
+    /* Chat: fixed width; resize with the left handle only */
+    .dashboard-row .panel.chat-panel {
+      width: var(--dashboard-chat-width);
+      min-width: 200px;
+      max-width: 520px;
+      flex: 0 0 auto;
+    }
+    /* Stream: grows to fill space; accounts stay pinned to the right */
+    .dashboard-row .panel.stream-panel {
+      flex: 1 1 auto;
+      min-width: 320px;
+      width: auto;
+    }
+    /* Accounts: fixed width on the right, not resizable */
+    .dashboard-row .panel.accounts-panel {
+      width: var(--dashboard-accounts-width);
+      flex: 0 0 auto;
+      flex-shrink: 0;
+    }
+    .resize-handle {
+      width: 6px;
+      flex-shrink: 0;
+      cursor: col-resize;
+      background: var(--border);
+      transition: background var(--transition);
+      position: relative;
+    }
+    .resize-handle:hover,
+    .resize-handle:active {
+      background: var(--accent);
+    }
+    .resize-handle::after {
+      content: '';
+      position: absolute;
+      left: 2px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--text-dim);
+      opacity: 0.5;
+      border-radius: 1px;
+    }
+    .tab-content.dashboard-tab {
+      grid-column: 1 / -1;
+    }
+    .tab-content.dashboard-tab .dashboard-row {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .tab-content.dashboard-tab .prepared-bar,
+    .tab-content.dashboard-tab .autosend-bar,
+    .tab-content.dashboard-tab .bottom-bar {
+      flex-shrink: 0;
     }
     .panel-head {
       padding: 14px 18px;
@@ -104,14 +201,24 @@
       gap: 10px;
     }
     .panel-head-icon {
-      width: 20px;
-      height: 20px;
+      width: 22px;
+      height: 22px;
       border-radius: 6px;
       background: var(--accent-dim);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
+      flex-shrink: 0;
+      color: var(--accent);
+    }
+    .panel-head-icon svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 2;
     }
     .chat-wrap, .stream-wrap { flex: 1; min-height: 0; position: relative; }
     .chat-wrap iframe, .stream-wrap iframe {
@@ -129,7 +236,9 @@
 
     .accounts-list {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 10px;
     }
     .accounts-list::-webkit-scrollbar { width: 6px; }
@@ -148,7 +257,7 @@
     .account-row:hover { background: var(--bg-elevated); }
     .account-row.selected {
       background: var(--accent-dim);
-      border: 1px solid rgba(145, 71, 255, 0.35);
+      border: 1px solid rgba(83, 252, 24, 0.35);
     }
     .account-row .avatar {
       width: 36px;
@@ -203,19 +312,105 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .btn-add-account {
-      margin-left: auto;
+    .account-block { margin-bottom: 8px; }
+    .account-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px 10px 52px;
+      margin-top: 2px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
+    .account-name-row .account-name-label {
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-dim);
+      min-width: 36px;
+      flex-shrink: 0;
+    }
+    .account-name-row .account-name-view {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .account-name-row.is-editing .account-name-view { display: none; }
+    .account-name-row .account-name-edit {
+      flex: 1;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .account-name-row.is-editing .account-name-edit { display: flex; }
+    .account-name-row .name-display-text {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.875rem;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .account-name-row .name-change-btn {
+      flex-shrink: 0;
       padding: 6px 12px;
-      border-radius: var(--radius-sm);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .account-name-row .name-change-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .account-name-row .name-input-inline {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-base);
+      color: var(--text);
+      font-size: 0.8125rem;
+      font-family: inherit;
+    }
+    .account-name-row .name-input-inline:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .account-name-row .name-save-inline {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: 8px;
       background: var(--accent-dim);
       color: var(--accent);
-      font-size: 0.8125rem;
-      font-weight: 500;
-      text-decoration: none;
-      transition: background var(--transition);
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
-    .btn-add-account:hover { background: rgba(145, 71, 255, 0.25); }
-    .account-block { margin-bottom: 8px; }
+    .account-name-row .name-cancel-inline {
+      padding: 6px 10px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .account-name-row .name-cancel-inline:hover { color: var(--text); }
     .account-proxy {
       display: flex;
       gap: 8px;
@@ -223,7 +418,7 @@
       padding: 8px 14px 10px 52px;
       margin-top: 2px;
       border-top: 1px solid var(--border);
-      background: rgba(0,0,0,0.2);
+      background: var(--bg-elevated);
       border-radius: 0 0 var(--radius-sm) var(--radius-sm);
     }
     .account-proxy .proxy-label {
@@ -267,11 +462,77 @@
       transition: background var(--transition);
     }
     .account-proxy .proxy-save:hover {
-      background: rgba(145, 71, 255, 0.3);
+      background: var(--accent-dim);
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.6; }
+    }
+
+    .prepared-bar, .autosend-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .prepared-bar .prepared-label, .autosend-bar .autosend-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+    .prepared-bar .prepared-btn {
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text);
+      font-size: 0.8125rem;
+      cursor: pointer;
+      transition: border-color var(--transition);
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .prepared-bar .prepared-btn:hover {
+      border-color: var(--accent);
+    }
+    .autosend-bar input[type="number"] {
+      width: 64px;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--text);
+      font-size: 0.875rem;
+    }
+    .autosend-bar .autosend-btn-on {
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.8125rem;
+      cursor: pointer;
+    }
+    .autosend-bar .autosend-btn-off {
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: var(--error);
+      color: #fff;
+      font-size: 0.8125rem;
+      cursor: pointer;
+    }
+    .autosend-bar .autosend-status {
+      font-size: 0.75rem;
+      color: var(--success);
     }
 
     .bottom-bar {
@@ -445,8 +706,10 @@
     .tabs button:hover { color: var(--text); background: var(--bg-panel); }
     .tabs button.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
 
-    .tab-content { display: none; grid-column: 1 / -1; }
-    .tab-content.is-active { display: grid; grid-template-columns: 1fr; gap: 12px; align-content: start; }
+    .tab-content { display: none; grid-column: 1 / -1; min-width: 0; }
+    .tab-content.is-active { display: grid; grid-template-columns: 1fr; gap: 12px; align-content: start; width: 100%; min-width: 0; }
+    .tab-content.is-active.dashboard-tab { display: flex; flex-direction: column; min-height: 0; min-width: 0; width: 100%; gap: 12px; }
+    #tabViewerbot.is-active { display: flex !important; flex-direction: column; width: 100%; min-width: 0; }
 
     .viewerbot-panel {
       background: var(--bg-panel);
@@ -454,6 +717,9 @@
       border-radius: var(--radius);
       padding: 20px;
       box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
     }
     .viewerbot-panel h2 { margin: 0 0 16px; font-size: 1rem; }
     .viewerbot-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 16px; }
@@ -481,76 +747,195 @@
     .viewerbot-online { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 12px; padding: 12px; background: var(--bg-base); border-radius: var(--radius-sm); font-size: 0.8125rem; }
     .viewerbot-online-item { color: var(--text-muted); }
     .viewerbot-online-item strong { color: var(--success); margin-right: 4px; }
-    .viewerbot-log-wrap { margin-top: 16px; }
-    .viewerbot-log-wrap label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
-    .viewerbot-log { height: 220px; overflow: auto; padding: 12px; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: ui-monospace, monospace; font-size: 0.75rem; line-height: 1.4; white-space: pre-wrap; word-break: break-all; color: var(--text); }
-    .viewerbot-log:empty::before { content: 'Лог Python-скрипта появится здесь после запуска.'; color: var(--text-dim); }
+    .viewerbot-metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 16px; }
+    .viewerbot-metric { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
+    .viewerbot-metric-value { font-size: 1.25rem; font-weight: 600; color: var(--accent); display: block; }
+    .viewerbot-metric-label { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+
+    .theme-toggle {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color var(--transition), border-color var(--transition), background var(--transition);
+    }
+    .theme-toggle:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .theme-toggle svg {
+      width: 20px;
+      height: 20px;
+    }
+    .theme-toggle .icon-sun { display: none; }
+    .theme-toggle .icon-moon { display: block; }
+    .theme-dark .theme-toggle .icon-sun { display: block; }
+    .theme-dark .theme-toggle .icon-moon { display: none; }
+
+    .accounts-help {
+      margin: 0 10px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      font-size: 0.8125rem;
+    }
+    .accounts-help > summary {
+      padding: 10px 12px;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text-muted);
+      list-style: none;
+    }
+    .accounts-help > summary::-webkit-details-marker { display: none; }
+    .accounts-help[open] > summary { color: var(--accent); }
+    .accounts-help-body {
+      padding: 0 12px 12px 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .accounts-help-body ol { margin: 0 0 8px; padding-left: 1.2em; }
+    .accounts-help-body li { margin-bottom: 6px; }
+    .accounts-help-body a { color: var(--accent); }
+    .accounts-help-uri {
+      margin: 0;
+      font-size: 0.75rem;
+      word-break: break-all;
+    }
+    .accounts-help-uri code {
+      display: block;
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: var(--bg-base);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.7rem;
+    }
+    .toast.toast-ok {
+      background: var(--success-dim);
+      border-color: rgba(83, 252, 24, 0.35);
+      color: var(--success);
+    }
+    .theme-light .toast.toast-ok {
+      border-color: rgba(46, 160, 67, 0.35);
+    }
   </style>
 </head>
 <body>
+  <script>
+    (function() {
+      var stored = localStorage.getItem('saturx-theme');
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = stored === 'dark' || stored === 'light' ? stored : 'dark';
+      document.documentElement.classList.add('theme-' + theme);
+    })();
+  </script>
   <div class="app">
     <header class="header">
       <div class="header-left">
-        <span class="logo">Kick Chat</span>
+        <span class="logo">SaturX</span>
         <span class="channel-badge" id="channelBadge">—</span>
         <div class="tabs">
-          <button type="button" class="tab-btn active" data-tab="dashboard">Дашборд</button>
-          <button type="button" class="tab-btn" data-tab="viewerbot">Накрутка зрителей</button>
+          <button type="button" class="tab-btn active" data-tab="dashboard">Dashboard</button>
+          <button type="button" class="tab-btn" data-tab="viewerbot">Viewer boost</button>
         </div>
       </div>
       <div class="header-meta" style="display:flex; align-items:center; gap:12px;">
+        <button type="button" class="theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        </button>
+        <button type="button" class="btn-shutdown" id="addAccountBtn" style="border-color:var(--accent);color:var(--accent);" title="Opens Kick sign-in in a new tab">Add account</button>
         <span class="last-update" id="lastUpdate"></span>
-        <button type="button" class="btn-shutdown" id="shutdownBtn" title="Завершить работу приложения">Отключить</button>
+        <button type="button" class="btn-shutdown" id="shutdownBtn" title="Shut down the application">Shutdown</button>
       </div>
     </header>
 
-    <div id="tabDashboard" class="tab-content is-active" style="grid-column: 1 / -1; display: grid; grid-template-columns: 340px 1fr 300px; grid-template-rows: 1fr auto; gap: 12px;">
-    <div class="panel">
-      <div class="panel-head">
-        <span class="panel-head-icon">💬</span>
-        Чат
+    <div id="tabDashboard" class="tab-content is-active dashboard-tab">
+    <div class="dashboard-row" id="dashboardRow">
+      <div class="panel chat-panel">
+        <div class="panel-head">
+          <span class="panel-head-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          </span>
+          Chat
+        </div>
+        <div class="chat-wrap">
+          <iframe id="chatFrame" title="Kick Chat"></iframe>
+        </div>
       </div>
-      <div class="chat-wrap">
-        <iframe id="chatFrame" title="Kick Chat"></iframe>
+      <div class="resize-handle" id="resizeChat" data-resize="chat" title="Drag to resize chat"></div>
+      <div class="panel stream-panel">
+        <div class="panel-head">
+          <span class="panel-head-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="14" rx="2.5" ry="2.5"/><path d="M10 8.5l6 3.5-6 3.5V8.5z"/></svg>
+          </span>
+          Stream
+        </div>
+        <div class="stream-wrap">
+          <iframe id="streamFrame" title="Kick Stream"></iframe>
+        </div>
+      </div>
+      <div class="panel accounts-panel">
+        <div class="panel-head">
+          <span class="panel-head-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </span>
+          Accounts
+          <span class="header-meta" style="margin-left:auto;font-size:0.75rem;">online = proxy ok</span>
+        </div>
+        <details class="accounts-help" id="accountsHelp">
+          <summary>How to add Kick accounts</summary>
+          <div class="accounts-help-body">
+            <ol>
+              <li>Create an app at <a href="https://developers.kick.com/" target="_blank" rel="noopener">Kick Developers</a> and set the <strong>Redirect URL</strong> to match this app (see below — must match <code>KICK_REDIRECT_URI</code> in <code>.env</code> or the default).</li>
+              <li>On first run, enter Client ID, Client Secret, and channel slug (the stream you chat in).</li>
+              <li>If a license is required, activate your key first, then return here.</li>
+              <li>Click <strong>Add account</strong> — a new tab opens; press <strong>Continue to Kick</strong> there (no auto-redirect). When you see <strong>Done</strong>, close the tab and <strong>refresh</strong> this page (F5).</li>
+              <li>Optional: set a display name and SOCKS5 proxy per account.</li>
+            </ol>
+            <p class="accounts-help-uri">Redirect URL in Kick must match SaturX: <code id="oauthRedirectUri">http://localhost:8080/oauth/callback</code> (same host/port as this dashboard; override with <code>KICK_REDIRECT_URI</code> in <code>.env</code> if needed).</p>
+            <p class="accounts-help-uri" style="margin-top:8px;">Use the same host you use in the browser (<code>localhost</code> vs <code>127.0.0.1</code>) — add both in Kick if needed.</p>
+          </div>
+        </details>
+        <div class="accounts-list" id="accountsList">
+          <div class="loading loading-dots">Loading</div>
+        </div>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-head">
-        <span class="panel-head-icon">▶</span>
-        Трансляция
-      </div>
-      <div class="stream-wrap">
-        <iframe id="streamFrame" title="Kick Stream"></iframe>
-      </div>
+    <div class="prepared-bar" id="preparedMessagesBar" style="display: none;">
+      <span class="prepared-label">Presets (messages.txt):</span>
+      <div id="preparedMessagesButtons"></div>
     </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <span class="panel-head-icon">👤</span>
-        Аккаунты
-        <span class="header-meta" style="margin-left:auto;font-size:0.75rem;">онлайн = прокси ок</span>
-        <a href="/oauth/start" class="btn-add-account" target="_blank" rel="noopener" title="Добавить аккаунт (OAuth)">+</a>
-      </div>
-      <div class="accounts-list" id="accountsList">
-        <div class="loading loading-dots">Загрузка</div>
-      </div>
+    <div class="autosend-bar" id="autosendBar">
+      <span class="autosend-label">Auto-send from selected account:</span>
+      <input type="number" id="autosendInterval" min="10" max="86400" value="60" title="Interval in seconds">
+      <span class="autosend-label">sec</span>
+      <button type="button" id="autosendToggle" class="autosend-btn-on">On</button>
+      <span class="autosend-status" id="autosendStatus" style="display: none;">on, every <span id="autosendIntervalVal">60</span>s</span>
     </div>
-
     <div class="bottom-bar">
       <div class="select-wrap">
         <select id="accountSelect">
-          <option value="">Выберите аккаунт</option>
+          <option value="">Select account</option>
         </select>
       </div>
       <div class="input-group">
         <div class="input-wrap">
-          <input type="text" id="messageInput" placeholder="Сообщение в чат…" maxlength="500" autocomplete="off">
+          <input type="text" id="messageInput" placeholder="Message to chat…" maxlength="500" autocomplete="off">
           <span class="char-count" id="charCount"></span>
         </div>
       </div>
       <button type="button" id="sendBtn">
-        <span id="sendBtnText">Отправить</span>
+        <span id="sendBtnText">Send</span>
         <span id="sendBtnSpinner" class="spinner" style="display:none;"></span>
       </button>
     </div>
@@ -558,37 +943,80 @@
 
     <div id="tabViewerbot" class="tab-content" style="display: none; grid-column: 1 / -1;">
       <div class="viewerbot-panel">
-        <h2>Накрутка зрителей</h2>
-        <p style="margin:0 0 16px; font-size:0.8125rem; color: var(--text-muted);">Канал и число зрителей. Прокси — по одному на строку (host:port или host:port:user:pass, SOCKS5). Без прокси все соединения с одного IP.</p>
+        <h2>Viewer boost</h2>
+        <p style="margin:0 0 16px; font-size:0.8125rem; color: var(--text-muted);">Channel, target viewer count, and optionally proxies (one per line, host:port or host:port:user:pass).</p>
         <div class="viewerbot-form">
           <div class="viewerbot-field">
-            <label>Канал (slug)</label>
-            <input type="text" id="viewerbotChannel" placeholder="mlaffonxd">
+            <label>Channel (slug)</label>
+            <input type="text" id="viewerbotChannel" placeholder="channel-slug">
           </div>
           <div class="viewerbot-field">
-            <label>Число зрителей (1–5000)</label>
+            <label>Target viewers (1–5000)</label>
             <input type="number" id="viewerbotTarget" min="1" max="5000" value="50">
           </div>
           <div class="viewerbot-actions">
-            <button type="button" class="viewerbot-btn viewerbot-btn-start" id="viewerbotStart">Старт</button>
-            <button type="button" class="viewerbot-btn viewerbot-btn-stop" id="viewerbotStop" disabled>Стоп</button>
+            <button type="button" class="viewerbot-btn viewerbot-btn-start" id="viewerbotStart">Start</button>
+            <button type="button" class="viewerbot-btn viewerbot-btn-stop" id="viewerbotStop" disabled>Stop</button>
           </div>
         </div>
         <div class="viewerbot-field">
-          <label>Прокси (по одной на строку)</label>
-          <textarea id="viewerbotProxies" placeholder="host:port или host:port:user:pass"></textarea>
+          <label>Proxies (one per line)</label>
+          <textarea id="viewerbotProxies" placeholder="host:port or host:port:user:pass"></textarea>
         </div>
-        <div class="viewerbot-stats" id="viewerbotStats">Не запущено.</div>
-        <div class="viewerbot-online" id="viewerbotOnline" style="display: none;"></div>
-        <div class="viewerbot-log-wrap">
-          <label>Лог Python-скрипта</label>
-          <pre class="viewerbot-log" id="viewerbotLog"></pre>
-        </div>
+        <div class="viewerbot-stats" id="viewerbotStats">Not running.</div>
+        <div class="viewerbot-metrics" id="viewerbotMetrics" style="display: none;"></div>
       </div>
     </div>
   </div>
 
   <script>
+    (function() {
+      var toggle = document.getElementById('themeToggle');
+      if (toggle) {
+        toggle.addEventListener('click', function() {
+          var html = document.documentElement;
+          var isDark = html.classList.contains('theme-dark');
+          html.classList.remove('theme-light', 'theme-dark');
+          html.classList.add(isDark ? 'theme-light' : 'theme-dark');
+          localStorage.setItem('saturx-theme', isDark ? 'light' : 'dark');
+        });
+      }
+    })();
+
+    (function() {
+      var chatWidth = localStorage.getItem('saturx-chat-width');
+      if (chatWidth) document.documentElement.style.setProperty('--dashboard-chat-width', chatWidth);
+
+      var handle = document.getElementById('resizeChat');
+      if (handle) {
+        var row = document.getElementById('dashboardRow');
+        var chatPanel = row && row.querySelector('.chat-panel');
+        if (row && chatPanel) {
+          handle.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            var startX = e.clientX;
+            var startChat = chatPanel.getBoundingClientRect().width;
+            function move(e) {
+              var dx = e.clientX - startX;
+              var w = Math.max(200, Math.min(520, startChat + dx));
+              document.documentElement.style.setProperty('--dashboard-chat-width', w + 'px');
+              localStorage.setItem('saturx-chat-width', w + 'px');
+            }
+            function stop() {
+              document.removeEventListener('mousemove', move);
+              document.removeEventListener('mouseup', stop);
+              document.body.style.cursor = '';
+              document.body.style.userSelect = '';
+            }
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', stop);
+          });
+        }
+      }
+    })();
+
     const chatFrame = document.getElementById('chatFrame');
     const streamFrame = document.getElementById('streamFrame');
     const accountsList = document.getElementById('accountsList');
@@ -605,69 +1033,135 @@
     let statusMap = {};
     let runnersMap = {};
     let lastUpdateTime = null;
+    let autosendEnabled = false;
 
-    function showError(msg) {
+    /** Persists dashboard account choice across reloads and periodic /api/accounts refresh (see setInterval loadAccounts). */
+    const LS_SELECTED_ACCOUNT = 'saturx_dashboard_selected_account_id';
+    function readSavedAccountId() {
+      try { return localStorage.getItem(LS_SELECTED_ACCOUNT); } catch (_) { return null; }
+    }
+    function writeSavedAccountId(id) {
+      try {
+        if (id) localStorage.setItem(LS_SELECTED_ACCOUNT, String(id));
+        else localStorage.removeItem(LS_SELECTED_ACCOUNT);
+      } catch (_) {}
+    }
+
+    function showToastMessage(msg, kind) {
       const existing = document.querySelector('.toast');
       if (existing) existing.remove();
       const el = document.createElement('div');
-      el.className = 'toast';
+      el.className = 'toast' + (kind === 'ok' ? ' toast-ok' : '');
       el.textContent = msg;
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 5000);
     }
 
+    function showError(msg) {
+      showToastMessage(msg, 'err');
+    }
+
     function setLastUpdate() {
       lastUpdateTime = Date.now();
-      lastUpdate.textContent = '';
+      if (lastUpdate) lastUpdate.textContent = '';
     }
     function refreshLastUpdate() {
-      if (!lastUpdateTime) return;
+      if (!lastUpdate || !lastUpdateTime) return;
       const sec = Math.floor((Date.now() - lastUpdateTime) / 1000);
-      if (sec < 60) lastUpdate.textContent = 'Обновлено только что';
-      else if (sec < 3600) lastUpdate.textContent = 'Обновлено ' + Math.floor(sec / 60) + ' мин назад';
-      else lastUpdate.textContent = '';
+      if (sec < 60) lastUpdate.textContent = 'Updated just now';
+      else if (sec < 3600) lastUpdate.textContent = 'Updated ' + Math.floor(sec / 60) + ' min ago';
+      else lastUpdate.textContent = 'Updated ' + Math.floor(sec / 3600) + ' h ago';
     }
 
     async function fetchJSON(path) {
-      const r = await fetch(path);
+      const ctrl = new AbortController();
+      const timer = setTimeout(function () { ctrl.abort(); }, 25000);
+      let r;
+      try {
+        r = await fetch(path, { cache: 'no-store', signal: ctrl.signal });
+      } catch (e) {
+        clearTimeout(timer);
+        if (e && e.name === 'AbortError') {
+          throw new Error('Request timed out — is SaturX running? Try reloading.');
+        }
+        throw e;
+      }
+      clearTimeout(timer);
       const text = await r.text();
       if (!r.ok) {
-        const msg = (text && text.length < 200) ? text : r.statusText || 'Ошибка ' + r.status;
+        const msg = (text && text.length < 200) ? text : r.statusText || 'Error ' + r.status;
         throw new Error(msg);
       }
       try {
         return text ? JSON.parse(text) : null;
       } catch (_) {
-        throw new Error('Неверный ответ сервера');
+        throw new Error('Invalid server response');
       }
     }
 
     async function loadChannel() {
       const data = await fetchJSON('/api/channel');
-      channelSlug = (data && data.slug) || 'mlaffonxd';
-      channelBadge.textContent = channelSlug;
-      streamFrame.src = 'https://player.kick.com/' + channelSlug;
-      chatFrame.src = 'https://kick.com/' + channelSlug;
+      channelSlug = (data && data.slug) || '';
+      if (channelBadge) channelBadge.textContent = channelSlug || '—';
+      if (channelSlug && streamFrame && chatFrame) {
+        streamFrame.src = 'https://player.kick.com/' + channelSlug;
+        chatFrame.src = 'https://kick.com/' + channelSlug + '?lang=en';
+      }
     }
 
-    function getInitial(name) {
-      if (!name || name.startsWith('Account ')) return '?';
-      return (name.trim()[0] || '?').toUpperCase();
+    function accountDisplayName(a) {
+      return (a.name && String(a.name).trim()) ? a.name : ('Account ' + a.id);
+    }
+
+    /** Updates display name in list and select without full dashboard reload. */
+    function applyAccountNameLocally(accountId, nameStr) {
+      if (!accountsList || !accountSelect) return;
+      const idStr = String(accountId);
+      const acc = accounts.find(function (a) { return String(a.id) === idStr; });
+      if (acc) acc.name = nameStr;
+      const disp = acc ? accountDisplayName(acc) : nameStr;
+      const row = accountsList.querySelector('.account-row[data-id="' + idStr + '"]');
+      if (row) {
+        const nameEl = row.querySelector('.name');
+        if (nameEl) nameEl.textContent = disp;
+        const av = row.querySelector('.avatar');
+        if (av) av.textContent = getInitial(disp);
+      }
+      const nameRow = accountsList.querySelector('.account-name-row[data-id="' + idStr + '"]');
+      if (nameRow) {
+        const nt = nameRow.querySelector('.name-display-text');
+        if (nt) nt.textContent = disp;
+        const inp = nameRow.querySelector('.name-input-inline');
+        if (inp) {
+          inp.value = nameStr;
+          inp.defaultValue = nameStr;
+        }
+        nameRow.classList.remove('is-editing');
+      }
+      const opt = accountSelect.querySelector('option[value="' + idStr + '"]');
+      if (opt && acc) {
+        opt.textContent = acc.id + ': ' + accountDisplayName(acc) + (statusMap[acc.id] ? ' ✓' : '');
+      }
+    }
+
+    function getInitial(displayLabel) {
+      if (!displayLabel || displayLabel.startsWith('Account ')) return '?';
+      return (displayLabel.trim()[0] || '?').toUpperCase();
     }
 
     function formatRunnerState(r) {
       if (!r) return '';
       const parts = [];
       parts.push(r.state);
-      if (r.queue_size > 0) parts.push('очередь: ' + r.queue_size);
+      if (r.queue_size > 0) parts.push('queue: ' + r.queue_size);
       if (r.cooldown_seconds > 0) parts.push('cooldown: ' + r.cooldown_seconds + 's');
       if (r.last_send_time) {
         const t = new Date(r.last_send_time).getTime();
         if (t) {
           const sec = Math.floor((Date.now() - t) / 1000);
-          if (sec < 60) parts.push('отправка: только что');
-          else if (sec < 3600) parts.push('отправка: ' + Math.floor(sec / 60) + ' мин назад');
-          else parts.push('отправка: ' + Math.floor(sec / 3600) + ' ч назад');
+          if (sec < 60) parts.push('sent: just now');
+          else if (sec < 3600) parts.push('sent: ' + Math.floor(sec / 60) + ' min ago');
+          else parts.push('sent: ' + Math.floor(sec / 3600) + ' h ago');
         }
       }
       return parts.join(' · ');
@@ -677,16 +1171,18 @@
       try {
         const list = await fetchJSON('/api/runners');
         runnersMap = {};
+        if (!Array.isArray(list)) return;
         list.forEach(r => { runnersMap[r.id] = r; });
       } catch (_) { runnersMap = {}; }
     }
 
     function refreshRunnerStatesInDOM() {
+      if (!accountsList) return;
       accountsList.querySelectorAll('.account-row').forEach(row => {
         const id = parseInt(row.dataset.id, 10);
         const r = runnersMap[id];
         let runnerEl = row.querySelector('.runner-state');
-        const text = r ? (r.state + (r.queue_size > 0 ? ' · очередь ' + r.queue_size : '') + (r.cooldown_seconds > 0 ? ' · cooldown ' + r.cooldown_seconds + 's' : '')) : '';
+        const text = r ? (r.state + (r.queue_size > 0 ? ' · queue ' + r.queue_size : '') + (r.cooldown_seconds > 0 ? ' · cooldown ' + r.cooldown_seconds + 's' : '')) : '';
         const tip = formatRunnerState(r);
         if (text) {
           if (!runnerEl) {
@@ -704,64 +1200,180 @@
 
     async function loadAccounts() {
       let list = [];
+      let statusList = [];
       try {
-        list = await fetchJSON('/api/accounts');
+        var results = await Promise.all([
+          fetchJSON('/api/accounts'),
+          fetchJSON('/api/status').catch(function () { return []; })
+        ]);
+        list = results[0];
+        statusList = results[1];
       } catch (e) {
-        accountsList.innerHTML = '<div class="toast" style="position:static;margin:12px;">Ошибка загрузки аккаунтов: ' + escapeHtml(e.message) + '</div>';
+        var errMsg = (e && e.message) ? e.message : String(e);
+        if (accountsList) {
+          accountsList.innerHTML = '<div class="toast" style="position:static;margin:12px;">Error loading accounts: ' + escapeHtml(errMsg) + '</div>';
+        }
         return;
       }
       if (!Array.isArray(list)) list = [];
       accounts = list;
 
-      let statusList = [];
-      try {
-        statusList = await fetchJSON('/api/status');
-      } catch (_) { statusList = []; }
+      if (!Array.isArray(statusList)) statusList = [];
       statusMap = {};
-      if (Array.isArray(statusList)) statusList.forEach(s => { statusMap[s.id] = s.online; });
+      statusList.forEach(function (s) { statusMap[s.id] = s.online; });
 
-      try { await loadRunners(); } catch (_) { runnersMap = {}; }
-      setLastUpdate();
+      // Render before /api/runners — otherwise a stuck runner request leaves "Loading…" forever.
+      runnersMap = {};
 
-      accountSelect.innerHTML = '<option value="">Выберите аккаунт</option>' +
-        accounts.map(a => '<option value="' + a.id + '">' + a.id + ': ' + escapeHtml(a.name) + (statusMap[a.id] ? ' ✓' : '') + '</option>').join('');
+      if (accountSelect) {
+        accountSelect.innerHTML = '<option value="">Select account</option>' +
+          accounts.map(a => '<option value="' + a.id + '">' + a.id + ': ' + escapeHtml(accountDisplayName(a)) + (statusMap[a.id] ? ' ✓' : '') + '</option>').join('');
 
-      const current = accounts.find(a => a.current);
-      if (current) {
-        accountSelect.value = String(current.id);
-        messageInput.focus();
+        if (accounts.length === 0) {
+          writeSavedAccountId('');
+        } else {
+          const saved = readSavedAccountId();
+          const idSet = new Set(accounts.map(a => String(a.id)));
+          let chosen = null;
+          if (saved && idSet.has(saved)) {
+            chosen = saved;
+          } else if (saved && !idSet.has(saved)) {
+            writeSavedAccountId('');
+          }
+          if (chosen) {
+            accountSelect.value = chosen;
+            const srvCurrent = accounts.find(a => a.current);
+            if (!srvCurrent || String(srvCurrent.id) !== chosen) {
+              fetch('/api/accounts/current', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account_id: parseInt(chosen, 10) }) }).catch(() => {});
+            }
+          } else {
+            const current = accounts.find(a => a.current);
+            if (current) {
+              accountSelect.value = String(current.id);
+              writeSavedAccountId(String(current.id));
+            }
+          }
+        }
       }
       selectRow();
+
+      if (!accountsList) {
+        try {
+          await loadRunners();
+        } catch (_) { runnersMap = {}; }
+        setLastUpdate();
+        return;
+      }
 
       accountsList.innerHTML = accounts.map(a => {
         const online = statusMap[a.id];
         const statusClass = online === true ? 'online' : (online === false ? 'offline' : 'unknown');
         const pulse = online === true ? ' pulse' : '';
-        const label = online === true ? 'Онлайн' : (online === false ? 'Офлайн' : '—');
+        const label = online === true ? 'Online' : (online === false ? 'Offline' : '—');
         const r = runnersMap[a.id];
         const runnerTip = formatRunnerState(r);
-        const runnerLine = r ? '<div class="id runner-state" title="' + escapeHtml(runnerTip) + '">' + escapeHtml(r.state) + (r.queue_size > 0 ? ' · очередь ' + r.queue_size : '') + (r.cooldown_seconds > 0 ? ' · cooldown ' + r.cooldown_seconds + 's' : '') + '</div>' : '';
+        const runnerLine = r ? '<div class="id runner-state" title="' + escapeHtml(runnerTip) + '">' + escapeHtml(r.state) + (r.queue_size > 0 ? ' · queue ' + r.queue_size : '') + (r.cooldown_seconds > 0 ? ' · cooldown ' + r.cooldown_seconds + 's' : '') + '</div>' : '';
         const proxyVal = (a.proxy != null && a.proxy !== undefined) ? a.proxy : '';
+        const disp = accountDisplayName(a);
+        const nameVal = (a.name != null && a.name !== undefined) ? String(a.name) : '';
         return '<div class="account-block">' +
-          '<div class="account-row' + (a.current ? ' selected' : '') + '" data-id="' + a.id + '" title="Аккаунт #' + a.id + (runnerTip ? '\n' + runnerTip : '') + '">' +
-          '<span class="avatar">' + escapeHtml(getInitial(a.name)) + '</span>' +
-          '<div class="info"><div class="name">' + escapeHtml(a.name) + '</div><div class="id">#' + a.id + '</div>' + runnerLine + '</div>' +
+          '<div class="account-row' + (a.current ? ' selected' : '') + '" data-id="' + a.id + '" title="Account #' + a.id + (runnerTip ? '\n' + runnerTip : '') + '">' +
+          '<span class="avatar">' + escapeHtml(getInitial(disp)) + '</span>' +
+          '<div class="info"><div class="name">' + escapeHtml(disp) + '</div><div class="id">#' + a.id + '</div>' + runnerLine + '</div>' +
           '<div class="status-wrap"><span class="status ' + statusClass + pulse + '" title="' + label + '"></span><span class="status-label">' + label + '</span></div></div>' +
-          '<div class="account-proxy"><span class="proxy-label">Прокси</span><input type="text" class="proxy-input" placeholder="host:port:user:pass" value="' + escapeHtml(proxyVal) + '" data-id="' + a.id + '"><button type="button" class="proxy-save" title="Сохранить" data-id="' + a.id + '">✓</button></div></div>';
+          '<div class="account-name-row" data-id="' + a.id + '">' +
+          '<span class="account-name-label">Name</span>' +
+          '<div class="account-name-view">' +
+          '<span class="name-display-text">' + escapeHtml(disp) + '</span>' +
+          '<button type="button" class="name-change-btn" data-id="' + a.id + '">Change</button>' +
+          '</div>' +
+          '<div class="account-name-edit">' +
+          '<input type="text" class="name-input-inline" placeholder="Display name" value="' + escapeHtml(nameVal) + '" data-id="' + a.id + '">' +
+          '<button type="button" class="name-save-inline" title="Save" data-id="' + a.id + '">✓</button>' +
+          '<button type="button" class="name-cancel-inline" data-id="' + a.id + '">Cancel</button>' +
+          '</div></div>' +
+          '<div class="account-proxy"><span class="proxy-label">Proxy</span><input type="text" class="proxy-input" placeholder="host:port:user:pass" value="' + escapeHtml(proxyVal) + '" data-id="' + a.id + '"><button type="button" class="proxy-save" title="Save proxy" data-id="' + a.id + '">✓</button></div></div>';
       }).join('');
 
       if (accounts.length === 0) {
-        accountsList.innerHTML = '<div class="toast" style="position:static;margin:12px;">Нет аккаунтов. Добавьте аккаунт через кнопку OAuth в шапке.</div>';
+        accountsList.innerHTML = '<div class="toast" style="position:static;margin:12px;">No accounts. Use <strong>Add account</strong> in the header to sign in with Kick.</div>';
       }
+
+      loadPreparedMessages();
+      loadAutosendStatus();
 
       accountsList.querySelectorAll('.account-row').forEach(el => {
         el.addEventListener('click', (ev) => {
-          if (ev.target.closest('.account-proxy')) return;
+          if (ev.target.closest('.account-proxy') || ev.target.closest('.account-name-row')) return;
           const id = el.dataset.id;
           accountSelect.value = id;
-          if (id) fetch('/api/accounts/current', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account_id: parseInt(id, 10) }) }).catch(() => {});
+          if (id) {
+            writeSavedAccountId(id);
+            fetch('/api/accounts/current', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account_id: parseInt(id, 10) }) }).catch(() => {});
+          } else {
+            writeSavedAccountId('');
+          }
           selectRow();
           messageInput.focus();
+        });
+      });
+      accountsList.querySelectorAll('.name-change-btn').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const row = btn.closest('.account-name-row');
+          if (!row) return;
+          row.classList.add('is-editing');
+          const input = row.querySelector('.name-input-inline');
+          if (input) {
+            input.focus();
+            input.select();
+          }
+        });
+      });
+      accountsList.querySelectorAll('.name-cancel-inline').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const row = btn.closest('.account-name-row');
+          if (!row) return;
+          const input = row.querySelector('.name-input-inline');
+          if (input) input.value = input.defaultValue;
+          row.classList.remove('is-editing');
+        });
+      });
+      accountsList.querySelectorAll('.name-save-inline').forEach(btn => {
+        btn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const id = btn.dataset.id;
+          const row = btn.closest('.account-name-row');
+          const input = row ? row.querySelector('.name-input-inline[data-id="' + id + '"]') : null;
+          const name = input ? input.value.trim() : '';
+          try {
+            const r = await fetch('/api/accounts/' + id + '/name', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: name })
+            });
+            if (!r.ok) throw new Error(await r.text());
+            applyAccountNameLocally(id, name);
+            showError('Name saved');
+          } catch (e) {
+            showError(e.message || 'Could not save name');
+          }
+        });
+      });
+      accountsList.querySelectorAll('.name-input-inline').forEach(inp => {
+        inp.addEventListener('keydown', (ev) => {
+          const row = inp.closest('.account-name-row');
+          if (!row || !row.classList.contains('is-editing')) return;
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            var saveBtn = row.querySelector('.name-save-inline');
+            if (saveBtn) saveBtn.click();
+          } else if (ev.key === 'Escape') {
+            ev.preventDefault();
+            var cancelBtn = row.querySelector('.name-cancel-inline');
+            if (cancelBtn) cancelBtn.click();
+          }
         });
       });
       accountsList.querySelectorAll('.proxy-save').forEach(btn => {
@@ -777,24 +1389,115 @@
               body: JSON.stringify({ proxy: proxy })
             });
             if (!r.ok) throw new Error(await r.text());
-            showError('Прокси сохранён');
+            showError('Proxy saved');
             setTimeout(() => loadAccounts(), 500);
           } catch (e) {
-            showError(e.message || 'Ошибка сохранения прокси');
+            showError(e.message || 'Error saving proxy');
           }
         });
       });
+
+      try {
+        await loadRunners();
+        refreshRunnerStatesInDOM();
+      } catch (_) {
+        runnersMap = {};
+      }
+      setLastUpdate();
     }
 
+    async function loadPreparedMessages() {
+      const bar = document.getElementById('preparedMessagesBar');
+      const container = document.getElementById('preparedMessagesButtons');
+      if (!bar || !container) return;
+      try {
+        const data = await fetchJSON('/api/messages');
+        const messages = data && Array.isArray(data.messages) ? data.messages : [];
+        container.innerHTML = '';
+        if (messages.length === 0) {
+          bar.style.display = 'none';
+          return;
+        }
+        bar.style.display = 'flex';
+        messages.forEach(function (msg) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'prepared-btn';
+          btn.textContent = msg.length > 28 ? msg.slice(0, 25) + '…' : msg;
+          btn.title = msg;
+          btn.addEventListener('click', function () { sendMessage(msg); });
+          container.appendChild(btn);
+        });
+      } catch (_) {
+        bar.style.display = 'none';
+      }
+    }
+
+    async function loadAutosendStatus() {
+      try {
+        const data = await fetchJSON('/api/autosend');
+        if (!data || typeof data !== 'object') return;
+        autosendEnabled = !!data.enabled;
+        if (data.interval_sec != null) {
+          const el = document.getElementById('autosendInterval');
+          if (el) el.value = Math.max(10, Math.min(86400, data.interval_sec));
+        }
+        updateAutosendUI();
+      } catch (_) {}
+    }
+
+    function updateAutosendUI() {
+      const btn = document.getElementById('autosendToggle');
+      const status = document.getElementById('autosendStatus');
+      const intervalVal = document.getElementById('autosendIntervalVal');
+      if (!btn || !status) return;
+      if (autosendEnabled) {
+        btn.textContent = 'Off';
+        btn.className = 'autosend-btn-off';
+        status.style.display = 'inline';
+        if (intervalVal) intervalVal.textContent = document.getElementById('autosendInterval').value || '60';
+      } else {
+        btn.textContent = 'On';
+        btn.className = 'autosend-btn-on';
+        status.style.display = 'none';
+      }
+    }
+
+    document.getElementById('autosendToggle').addEventListener('click', async function () {
+      const intervalEl = document.getElementById('autosendInterval');
+      let sec = parseInt(intervalEl.value, 10) || 60;
+      if (sec < 10) sec = 10;
+      if (sec > 86400) sec = 86400;
+      try {
+        const r = await fetch('/api/autosend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: !autosendEnabled, interval_sec: sec })
+        });
+        const text = await r.text();
+        if (!r.ok) { showError(text || r.statusText); return; }
+        autosendEnabled = !autosendEnabled;
+        updateAutosendUI();
+        showError(autosendEnabled ? 'Auto-send on (every ' + sec + 's)' : 'Auto-send off');
+      } catch (e) { showError(e.message); }
+    });
+
     function selectRow() {
+      if (!accountSelect || !accountsList) return;
       accountsList.querySelectorAll('.account-row').forEach(el => {
         el.classList.toggle('selected', el.dataset.id === accountSelect.value);
       });
     }
     accountSelect.addEventListener('change', () => {
       selectRow();
-      const id = parseInt(accountSelect.value, 10);
-      if (id) fetch('/api/accounts/current', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account_id: id }) }).catch(() => {});
+      const raw = accountSelect.value;
+      const id = parseInt(raw, 10);
+      if (id) {
+        writeSavedAccountId(raw);
+        fetch('/api/accounts/current', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account_id: id }) }).catch(() => {});
+      } else {
+        writeSavedAccountId('');
+      }
       messageInput.focus();
     });
 
@@ -814,7 +1517,7 @@
       const accountId = accountSelect.value;
       const msg = optionalText !== undefined ? String(optionalText) : messageInput.value.trim();
       if (!accountId || !msg) {
-        showError('Выберите аккаунт и введите сообщение.');
+        showError('Select an account and enter a message.');
         return;
       }
       sendBtn.disabled = true;
@@ -845,11 +1548,11 @@
     const shutdownBtn = document.getElementById('shutdownBtn');
     shutdownBtn.addEventListener('click', async () => {
       shutdownBtn.disabled = true;
-      shutdownBtn.textContent = 'Отключаем…';
+      shutdownBtn.textContent = 'Shutting down…';
       try {
         await fetch('/api/shutdown', { method: 'POST' });
       } catch (_) {}
-      setTimeout(() => { shutdownBtn.textContent = 'Сервер остановлен'; }, 500);
+      setTimeout(() => { shutdownBtn.textContent = 'Server stopped'; }, 500);
     });
 
     sendBtn.addEventListener('click', () => sendMessage());
@@ -866,10 +1569,19 @@
       const added = params.get('added');
       const oauth = params.get('oauth');
       if (added === '1') {
-        showError('Аккаунт добавлен.');
+        showToastMessage('Account added. You can rename it or set a proxy below.', 'ok');
         history.replaceState({}, '', window.location.pathname);
-      } else if (oauth) {
-        const msg = { error: 'Ошибка OAuth', expired: 'Сессия истекла', exchange_failed: 'Обмен кода не удался', add_failed: 'Не удалось добавить аккаунт' }[oauth] || oauth;
+        return;
+      }
+      if (oauth) {
+        const msg = {
+          error: 'OAuth error',
+          expired: 'OAuth session expired. Click Add account again.',
+          exchange_failed: 'Could not complete OAuth. In Kick Developers, set Redirect URL to the OAuth redirect shown under Accounts → help.',
+          add_failed: 'Failed to save account',
+          need_license: 'Activate your license first, then click Add account.',
+          kick_setup: 'Finish Kick setup (Client ID, Secret, channel) on the first screen, then add accounts.'
+        }[oauth] || oauth;
         showError(msg);
         history.replaceState({}, '', window.location.pathname);
       }
@@ -907,7 +1619,7 @@
     }
     async function updateViewerbotStatus() {
       const el = document.getElementById('viewerbotStats');
-      const onlineEl = document.getElementById('viewerbotOnline');
+      const metricsEl = document.getElementById('viewerbotMetrics');
       if (!el) return;
       try {
         const r = await fetch('/api/viewerbot/status');
@@ -917,23 +1629,24 @@
           const dur = st.duration_sec || 0;
           const m = Math.floor(dur / 60);
           const s = dur % 60;
-          el.innerHTML = 'Запущено. Подключено: <span>' + st.connected + '</span> / <span>' + st.target + '</span> · Длительность: <span>' + m + ' мин ' + s + ' с</span>';
-          if (onlineEl) {
-            onlineEl.style.display = 'flex';
-            onlineEl.innerHTML =
-              '<span class="viewerbot-online-item"><strong>Онлайн (стрим):</strong> ' + (st.viewers != null ? st.viewers : '—') + '</span>' +
-              '<span class="viewerbot-online-item"><strong>Подключено:</strong> ' + st.connected + ' / ' + st.target + '</span>' +
-              (st.pings != null ? '<span class="viewerbot-online-item"><strong>Пинги:</strong> ' + st.pings + '</span>' : '') +
-              (st.attempts != null ? '<span class="viewerbot-online-item"><strong>Попытки:</strong> ' + st.attempts + '</span>' : '') +
-              (st.heartbeats != null ? '<span class="viewerbot-online-item"><strong>Хартбиты:</strong> ' + st.heartbeats + '</span>' : '') +
-              '<span class="viewerbot-online-item"><strong>Длительность:</strong> ' + m + ' мин ' + s + ' с</span>';
+          el.innerHTML = 'Running · <span>' + st.connected + '</span> / <span>' + st.target + '</span> connected · <span>' + m + ' min ' + s + ' s</span>';
+          if (metricsEl) {
+            metricsEl.style.display = 'grid';
+            metricsEl.innerHTML =
+              '<div class="viewerbot-metric"><span class="viewerbot-metric-value">' + (st.connected != null ? st.connected : '—') + '</span><span class="viewerbot-metric-label">Connected</span></div>' +
+              '<div class="viewerbot-metric"><span class="viewerbot-metric-value">' + (st.target != null ? st.target : '—') + '</span><span class="viewerbot-metric-label">Target</span></div>' +
+              (st.viewers != null ? '<div class="viewerbot-metric"><span class="viewerbot-metric-value">' + st.viewers + '</span><span class="viewerbot-metric-label">Online on stream</span></div>' : '') +
+              (st.attempts != null ? '<div class="viewerbot-metric"><span class="viewerbot-metric-value">' + st.attempts + '</span><span class="viewerbot-metric-label">Attempts</span></div>' : '') +
+              (st.pings != null ? '<div class="viewerbot-metric"><span class="viewerbot-metric-value">' + st.pings + '</span><span class="viewerbot-metric-label">Pings</span></div>' : '') +
+              (st.heartbeats != null ? '<div class="viewerbot-metric"><span class="viewerbot-metric-value">' + st.heartbeats + '</span><span class="viewerbot-metric-label">Heartbeats</span></div>' : '') +
+              '<div class="viewerbot-metric"><span class="viewerbot-metric-value">' + m + ':' + (s < 10 ? '0' : '') + s + '</span><span class="viewerbot-metric-label">Duration</span></div>';
           }
           document.getElementById('viewerbotStart').disabled = true;
           document.getElementById('viewerbotStop').disabled = false;
           startViewerbotLogPoll();
         } else {
-          el.textContent = 'Не запущено.';
-          if (onlineEl) onlineEl.style.display = 'none';
+          el.textContent = 'Not running.';
+          if (metricsEl) { metricsEl.style.display = 'none'; metricsEl.innerHTML = ''; }
           document.getElementById('viewerbotStart').disabled = false;
           document.getElementById('viewerbotStop').disabled = true;
           stopViewerbotLogPoll();
@@ -945,13 +1658,18 @@
       const dash = document.getElementById('tabDashboard');
       const vb = document.getElementById('tabViewerbot');
       if (name === 'dashboard') {
-        dash.style.display = 'grid';
+        dash.classList.add('is-active');
+        dash.style.display = '';
+        vb.classList.remove('is-active');
         vb.style.display = 'none';
         stopViewerbotStatusPoll();
         stopViewerbotLogPoll();
       } else {
+        dash.classList.remove('is-active');
         dash.style.display = 'none';
-        vb.style.display = 'block';
+        vb.classList.add('is-active');
+        vb.style.display = 'flex';
+        vb.style.width = '100%';
         if (document.getElementById('viewerbotChannel').value === '' && channelSlug) document.getElementById('viewerbotChannel').placeholder = channelSlug;
         startViewerbotStatusPoll();
         updateViewerbotLog();
@@ -965,8 +1683,8 @@
       const target = parseInt(document.getElementById('viewerbotTarget').value, 10) || 50;
       const proxiesText = document.getElementById('viewerbotProxies').value.trim();
       const proxies = proxiesText ? proxiesText.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : [];
-      if (!channel) { showError('Укажите канал или выберите канал в дашборде'); return; }
-      if (target < 1 || target > 5000) { showError('Число зрителей: 1–5000'); return; }
+      if (!channel) { showError('Enter channel or select channel in dashboard'); return; }
+      if (target < 1 || target > 5000) { showError('Viewer count: 1–5000'); return; }
       try {
         const r = await fetch('/api/viewerbot/start', {
           method: 'POST',
@@ -975,36 +1693,49 @@
         });
         const text = await r.text();
         if (!r.ok) { showError(text || r.statusText); return; }
-        showError('Накрутка запущена');
+        showError('Viewer boost started');
         startViewerbotStatusPoll();
       } catch (e) { showError(e.message); }
     });
     document.getElementById('viewerbotStop').addEventListener('click', async () => {
       try {
         await fetch('/api/viewerbot/stop', { method: 'POST' });
-        showError('Накрутка остановлена');
+        showError('Viewer boost stopped');
         updateViewerbotStatus();
       } catch (_) {}
     });
 
     async function init() {
+      var ou = document.getElementById('oauthRedirectUri');
+      if (ou) ou.textContent = window.location.origin + '/oauth/callback';
+      var addBtn = document.getElementById('addAccountBtn');
+      if (addBtn) addBtn.addEventListener('click', function() {
+        window.open('/oauth/start', '_blank', 'noopener,noreferrer');
+      });
+
       checkOAuthParams();
       try {
         await loadAccounts();
+        if (accountSelect && accountSelect.value) {
+          try { messageInput.focus(); } catch (_) {}
+        }
       } catch (e) {
-        accountsList.innerHTML = '<div class="toast" style="position:static;margin:12px;">Ошибка: ' + escapeHtml(e.message) + (e.message && e.message.indexOf('license') !== -1 ? '. <a href="/" style="color:var(--accent);">Обновить страницу</a>' : '') + '</div>';
+        var msg = (e && e.message) ? e.message : String(e);
+        if (accountsList) {
+          accountsList.innerHTML = '<div class="toast" style="position:static;margin:12px;">Error: ' + escapeHtml(msg) + (msg.indexOf('license') !== -1 ? '. <a href="/" style="color:var(--accent);">Open / reload</a>' : '') + '</div>';
+        }
       }
       try {
         await loadChannel();
       } catch (e) {
-        channelBadge.textContent = '?';
-        showError('Канал: ' + (e.message || 'ошибка'));
+        if (channelBadge) channelBadge.textContent = '?';
+        showError('Channel: ' + ((e && e.message) || 'error'));
       }
       setInterval(loadAccounts, 30000);
       setInterval(async () => { await loadRunners(); refreshRunnerStatesInDOM(); }, 5000);
       setInterval(refreshLastUpdate, 10000);
     }
-    init();
+    init().catch(function (err) { console.error(err); });
   </script>
 </body>
 </html>

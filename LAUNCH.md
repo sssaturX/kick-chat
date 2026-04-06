@@ -1,13 +1,20 @@
-# Как всё запустить (License Server + Kick Chat)
+# Как всё запустить (License Server + SaturX)
 
 ## Где задаётся домен / URL сервера лицензий
 
-Запросы к серверу лицензий идут **из приложения Kick Chat** (с ПК пользователя). **Пользователю не нужно прописывать URL и HMAC в .env** — ты задаёшь их при сборке бинарника (см. раздел 2). В собранном приложении они уже «зашиты».
+Запросы к серверу лицензий идут **из приложения SaturX** (с ПК пользователя). **Пользователю не нужно прописывать URL и HMAC в .env** — ты задаёшь их при сборке бинарника (см. раздел 2). В собранном приложении они уже «зашиты».
 
+**Где в kick-chat прописать домен для проверки лицензии:**
+
+- **Файл:** корень проекта kick-chat, файл **`.env`** (рядом с `main.go`).
+- **Переменные:**
+  - `LICENSE_SERVER_URL=https://license.твой-домен.com` — без слэша в конце.
+  - `LICENSE_HMAC_SECRET=...` — тот же HMAC_SECRET, что в `.env` на License Server.
+- **Когда читается:** скрипт **`scripts/build-release.ps1`** при сборке читает этот `.env` и передаёт значения в `go build -ldflags`, поэтому они попадают в `SaturX.exe`. Перед каждой сборкой релиза проверь, что в `.env` указан нужный домен и HMAC.
 
 | Где                         | Кто задаёт                 | Что                                                                                         |
 | --------------------------- | -------------------------- | ------------------------------------------------------------------------------------------- |
-| **Kick Chat (бинарник)**    | Ты при сборке (`-ldflags`) | URL сервера лицензий и HMAC-секрет для проверки подписи. Юзер их не видит и не редактирует. |
+| **SaturX (бинарник)**      | Ты при сборке (`-ldflags`) | URL сервера лицензий и HMAC-секрет для проверки подписи. Юзер их не видит и не редактирует. |
 | **На VPS (License Server)** | Ты в .env / окружении      | `PORT`, `HMAC_SECRET`, `ADMIN_API_KEY` и т.д. Домен и HTTPS — в nginx/caddy на VPS.         |
 
 
@@ -17,7 +24,7 @@
 
 ```
 [ПК пользователя]                          [Твой VPS]
-  Kick Chat  ─── URL/HMAC из бинарника ───►  License Server (Postgres, Redis)
+  SaturX  ─── URL/HMAC из бинарника ───►  License Server (Postgres, Redis)
        │              (activate, refresh)         │
        │                                          │
        └── дашборд localhost:8080                 └── API :8000 (или за nginx)
@@ -83,7 +90,7 @@ RATE_LIMIT_RPS=100
 - SSL: Let's Encrypt
 - Проксирование `https://license.mysite.com` → `http://127.0.0.1:8000`
 
-Тогда снаружи запросы идут на `https://license.mysite.com` — этот URL ты подставляешь при сборке Kick Chat в `-ldflags` (см. раздел 2).
+Тогда снаружи запросы идут на `https://license.mysite.com` — этот URL ты подставляешь при сборке SaturX в `-ldflags` (см. раздел 2).
 
 **Полный подъём через Docker на VPS (все сервисы в контейнерах):**
 
@@ -97,7 +104,7 @@ docker compose up -d
 
 ---
 
-## 2. Kick Chat (у пользователя)
+## 2. SaturX (у пользователя)
 
 Запускается на ПК пользователя. URL сервера лицензий и HMAC **не задаются пользователем** — они задаются при сборке бинарника (см. ниже). В .env у пользователя только OAuth и опционально порт.
 
@@ -106,14 +113,14 @@ docker compose up -d
 - Подставь свой URL и HMAC-секрет (как на license server) — пользователь не пишет их в .env.
 - Собери с тегом **`release`**: накрутка зрителей идёт через **скомпилированный** вьюербот (бинарник из твоего Python-кода), без установки Python и без отдачи .py — код не просмотреть.
 
-**1) Сборка Kick Chat:**
+**1) Сборка SaturX:**
 
 ```bash
 cd kick-chat
 go build -tags release -ldflags "\
   -X main.defaultLicenseServerURL=https://license.mysite.com \
   -X main.defaultLicenseHMACSecret=ТОТ_ЖЕ_HMAC_SECRET_ЧТО_НА_LICENSE_SERVER" \
-  -o kick-chat .
+  -o saturx .
 ```
 
 **2) Сборка вьюербота (один бинарник из kick.py, без исходников):**
@@ -128,20 +135,21 @@ cd kick-chat/test_view/kick-viewbot
 **Всё одной командой (Go + Python, флаги из .env):**
 
 - **macOS/Linux:** `cd kick-chat` → `./scripts/build-release.sh`
-- **Сборка под Windows с Mac:** `./scripts/build-release.sh windows` — соберётся только **kick-chat.exe** (Go кросс-компилируется). **viewerbot.exe** нужно собрать на самой Windows: `.\scripts\build-release.ps1` или только `test_view\kick-viewbot\build-viewerbot.ps1`, затем положить в `release/` рядом с kick-chat.exe.
+- **Сборка под Windows с Mac:** `./scripts/build-release.sh windows` — соберётся только **SaturX.exe** (Go кросс-компилируется). **viewerbot.exe** нужно собрать на самой Windows: `.\scripts\build-release.ps1` или только `test_view\kick-viewbot\build-viewerbot.ps1`, затем положить в `release/` рядом с SaturX.exe.
 - **Windows (PowerShell):** `cd kick-chat` → `.\scripts\build-release.ps1`
 
-Скрипты читают `LICENSE_SERVER_URL` и `LICENSE_HMAC_SECRET` из `.env`, собирают kick-chat и viewerbot, кладут оба в папку **`release/`** (на Windows: kick-chat.exe и viewerbot.exe).
+Скрипты читают `LICENSE_SERVER_URL` и `LICENSE_HMAC_SECRET` из `.env`, собирают SaturX и viewerbot, кладут оба в папку **`release/`** (на Windows: SaturX.exe и viewerbot.exe).
 
 Секрет в `-ldflags` не коммить в репозиторий (используй скрипт/CI или переменные окружения при сборке).
 
-**Что отдавать пользователю:** два файла в одной папке — **`kick-chat`** и **`viewerbot`** (или `viewerbot.exe`), плюс инструкция про .env с `KICK_CLIENT_ID` и `KICK_CLIENT_SECRET`. Никаких .py и папок с кодом; накрутка работает через бинарник viewerbot, код не просмотреть, Python ставить не нужно.
+**Что отдавать пользователю:** два файла в одной папке — **`saturx`** / **`SaturX.exe`** и **`viewerbot`** (или `viewerbot.exe`), плюс инструкция про .env: пользователь указывает `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` и `CHANNEL_SLUG`. Никаких .py и папок с кодом; накрутка работает через бинарник viewerbot, код не просмотреть, Python ставить не нужно.
 
-**У пользователя в `.env` только:**
+**У пользователя в `.env` только (обязательно заполнить):**
 
 ```env
 KICK_CLIENT_ID=...
 KICK_CLIENT_SECRET=...
+CHANNEL_SLUG=...
 # DASHBOARD_PORT=8080  — опционально
 ```
 
@@ -150,7 +158,7 @@ KICK_CLIENT_SECRET=...
 **Запуск у пользователя:**
 
 ```bash
-./kick-chat
+./saturx
 ```
 
 - Дашборд: **[http://localhost:8080](http://localhost:8080)**
@@ -183,7 +191,27 @@ curl -X POST https://license.mysite.com/admin/licenses \
 | Компонент          | Где запускается    | Что задаёт «домен» / URL                                                          |
 | ------------------ | ------------------ | --------------------------------------------------------------------------------- |
 | **License Server** | VPS (или локально) | На VPS: nginx/caddy дают домен и HTTPS. В приложении только `PORT=8000`.          |
-| **Kick Chat**      | ПК пользователя    | URL и HMAC при сборке (`-ldflags`). Накрутка — бинарник `viewerbot` (PyInstaller из kick.py), без .py и без Python. |
+| **SaturX**          | ПК пользователя    | URL и HMAC при сборке (`-ldflags`). Накрутка — бинарник `viewerbot` (PyInstaller из kick.py), без .py и без Python. |
 
 
-Итого: при сборке задаёшь URL и HMAC; пользователю отдаёшь **kick-chat** + **viewerbot** в одной папке, в .env только `KICK_CLIENT_ID` и `KICK_CLIENT_SECRET`. На VPS домен — в nginx/caddy перед `PORT` (8000).
+Итого: при сборке задаёшь URL и HMAC; пользователю отдаёшь папку **SaturX** (или zip) с exe и инструкциями; в .env только `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` и `CHANNEL_SLUG`. На VPS домен — в nginx/caddy перед `PORT` (8000).
+
+---
+
+## 5. Папка release: что отдавать юзеру, иконка и название exe
+
+**Сборка под Windows** (`.\scripts\build-release.ps1`) создаёт папку **`release\SaturX\`** — это и есть финальная поставка для пользователя.
+
+**Содержимое `release\SaturX\`:**
+- **SaturX.exe** — основное приложение (название и, при наличии иконки, значок задаются при сборке).
+- **viewerbot.exe** — вьюербот (если собран).
+- **.env.example** — шаблон; пользователь копирует в `.env` и заполняет.
+- **USER-GUIDE.md** — инструкция для пользователя.
+- **README.txt** — краткий «быстрый старт».
+
+**Что делать с этой папкой:** заархивировать как `SaturX.zip` и отдать пользователю. Внутри не должно быть `.git`, рабочих `.env` с секретами, `.kick_accounts.json` — только перечисленные файлы.
+
+**Иконка и название exe (Windows):**
+- Название и описание в проводнике задаются в **`versioninfo.json`** в корне проекта (ProductName, FileDescription и т.д.). Сборка использует их автоматически.
+- Чтобы у exe был свой значок: положи **`build\icon.ico`** (формат .ico, можно несколько размеров: 16, 32, 48, 256 px). Подробнее — в `build\README.txt`.
+- Нужна утилита **goversioninfo**: один раз выполни `go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest`. Если её нет, exe соберётся без иконки и без версии в свойствах файла.

@@ -1,0 +1,43 @@
+{
+  "FixedFileInfo": {
+    "FileVersion": {
+      "Major": 1,
+      "Minor": 0,
+      "Patch": 0,
+      "Build": 0
+    },
+    "ProductVersion": {
+      "Major": 1,
+      "Minor": 0,
+      "Patch": 0,
+      "Build": 0
+    },
+    "FileFlagsMask": "3f",
+    "FileFlags ": "00",
+    "FileOS": "040004",
+    "FileType": "01",
+    "FileSubType": "00"
+  },
+  "StringFileInfo": {
+    "Comments": "SaturX — дашборд и чат для Kick.com",
+    "CompanyName": "",
+    "FileDescription": "SaturX — дашборд и чат для Kick",
+    "FileVersion": "1.0.0.0",
+    "InternalName": "saturx",
+    "LegalCopyright": "",
+    "LegalTrademarks": "",
+    "OriginalFilename": "SaturX.exe",
+    "PrivateBuild": "",
+    "ProductName": "SaturX",
+    "ProductVersion": "1.0.0",
+    "SpecialBuild": ""
+  },
+  "VarFileInfo": {
+    "Translation": {
+      "LangID": "0409",
+      "CharsetID": "04B0"
+    }
+  },
+  "IconPath": "",
+  "ManifestPath": ""
+}

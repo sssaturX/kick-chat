@@ -26,6 +26,7 @@ const (
 
 // Payload is the decrypted license data stored on disk.
 type Payload struct {
+	LicenseKey       string    `json:"license_key"`        // stored for re-validation (e.g. after admin revoke)
 	SignedLicense    string    `json:"signed_license"`
 	RefreshToken     string    `json:"refresh_token"`
 	DeviceID         string    `json:"device_id"`

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -13,6 +14,13 @@ type Config struct {
 	HMACSecret   string
 	AdminAPIKey  string
 	RateLimitRPS int
+
+	// Optional: gated download portal at GET /download (requires Redis for one-time tokens)
+	DownloadFilePath string // host path to zip/installer
+	DownloadFileName string // filename shown in browser (Content-Disposition)
+
+	AdminSessionTTL   time.Duration // Redis-backed admin UI session cookie
+	AdminCookieSecure bool          // Set Secure flag on session cookie (use true behind HTTPS)
 }
 
 func Load() (*Config, error) {
@@ -42,12 +50,30 @@ func Load() (*Config, error) {
 			rps = 100
 		}
 	}
+	dlPath := strings.TrimSpace(os.Getenv("DOWNLOAD_FILE_PATH"))
+	dlName := strings.TrimSpace(os.Getenv("DOWNLOAD_FILE_NAME"))
+	if dlName == "" && dlPath != "" {
+		dlName = "SaturX.zip"
+	}
+
+	sessionTTL := 24 * time.Hour
+	if v := strings.TrimSpace(os.Getenv("ADMIN_SESSION_TTL")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			sessionTTL = d
+		}
+	}
+	cookieSecure := strings.EqualFold(os.Getenv("ADMIN_COOKIE_SECURE"), "true") || os.Getenv("ADMIN_COOKIE_SECURE") == "1"
+
 	return &Config{
-		Port:         port,
-		DatabaseURL:  dbURL,
-		RedisURL:     redisURL,
-		HMACSecret:   hmacSecret,
-		AdminAPIKey:  adminKey,
-		RateLimitRPS: rps,
+		Port:              port,
+		DatabaseURL:       dbURL,
+		RedisURL:          redisURL,
+		HMACSecret:        hmacSecret,
+		AdminAPIKey:       adminKey,
+		RateLimitRPS:      rps,
+		DownloadFilePath:  dlPath,
+		DownloadFileName:  dlName,
+		AdminSessionTTL:   sessionTTL,
+		AdminCookieSecure: cookieSecure,
 	}, nil
 }

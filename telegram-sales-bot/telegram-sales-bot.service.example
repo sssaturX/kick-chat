@@ -1,0 +1,25 @@
+# Copy to /etc/systemd/system/telegram-sales-bot.service
+# Adjust WorkingDirectory and ExecStart to match your VPS paths.
+#
+#   sudo cp telegram-sales-bot.service.example /etc/systemd/system/telegram-sales-bot.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now telegram-sales-bot
+
+[Unit]
+Description=SaturX Telegram sales bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/telegram-sales-bot
+ExecStart=/opt/telegram-sales-bot/telegram-sales-bot
+Restart=on-failure
+RestartSec=5
+
+# Optional: run as non-root (chown this dir + sqlite file to that user)
+# User=bot
+# Group=bot
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SaturX — Kick setup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --panel: #18181b;
+      --border: #2d2d32;
+      --text: #efeff1;
+      --muted: #adadb8;
+      --accent: #53fc18;
+      --accent-dim: rgba(83, 252, 24, 0.15);
+      --error: #eb0400;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px 16px 48px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 520px; margin: 0 auto; }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin: 0 0 8px;
+      letter-spacing: -0.02em;
+    }
+    .lead { color: var(--muted); font-size: 0.9rem; line-height: 1.5; margin: 0 0 24px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 20px 8px;
+    }
+    label {
+      display: block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.45;
+      margin: -8px 0 20px;
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .hint code { font-size: 0.78rem; word-break: break-all; color: var(--text); }
+    button[type="submit"] {
+      width: 100%;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), #6fff2e);
+      color: #0a0a0a;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      margin-top: 4px;
+      margin-bottom: 16px;
+    }
+    button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }
+    .err {
+      color: var(--error);
+      font-size: 0.875rem;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .err.show { display: block; }
+    .note { font-size: 0.8rem; color: var(--muted); text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Connect Kick</h1>
+    <p class="lead">Enter your app credentials from <a href="https://developers.kick.com/" style="color:var(--accent);" target="_blank" rel="noopener">developers.kick.com</a> and the channel you chat in. You can minimize the console — everything else is here.</p>
+    <p class="lead" id="kickSetupBanner" style="display:none;color:var(--accent);font-weight:500;">Save Client ID, Secret, and channel first — without them, <strong>Add account</strong> cannot connect Kick.</p>
+    <div class="err" id="err"></div>
+    <form class="card" id="form">
+      <label for="cid">KICK_CLIENT_ID</label>
+      <input type="text" id="cid" name="kick_client_id" autocomplete="off" required placeholder="Client ID">
+      <label for="csec">KICK_CLIENT_SECRET</label>
+      <input type="password" id="csec" name="kick_client_secret" autocomplete="off" required placeholder="Client Secret">
+      <label for="slug">CHANNEL_SLUG</label>
+      <input type="text" id="slug" name="channel_slug" autocomplete="off" required placeholder="e.g. YourChannel">
+      <p class="hint">In Kick, set Redirect URL to the same address SaturX uses: <code id="redirectUrl">http://localhost:8080/oauth/callback</code> (port = DASHBOARD_PORT). If needed, add to <code>.env</code>: <code>KICK_REDIRECT_URI=...</code></p>
+      <button type="submit" id="btn">Save and restart</button>
+    </form>
+    <p class="note">After saving, the app restarts and you can continue (license, accounts).</p>
+  </div>
+  <script>
+    (function() {
+      var p = window.location.port;
+      var el = document.getElementById('redirectUrl');
+      if (el && p) {
+        var webCb = 'http://localhost:' + p + '/oauth/callback';
+        el.textContent = webCb + ' — add to .env: KICK_REDIRECT_URI=' + webCb;
+      }
+      var q = new URLSearchParams(location.search);
+      if (q.get('oauth') === 'kick_setup') {
+        var b = document.getElementById('kickSetupBanner');
+        if (b) b.style.display = 'block';
+      }
+    })();
+    document.getElementById('form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var err = document.getElementById('err');
+      var btn = document.getElementById('btn');
+      err.classList.remove('show');
+      btn.disabled = true;
+      var body = {
+        kick_client_id: document.getElementById('cid').value.trim(),
+        kick_client_secret: document.getElementById('csec').value.trim(),
+        channel_slug: document.getElementById('slug').value.trim()
+      };
+      try {
+        var r = await fetch('/api/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        var text = await r.text();
+        if (!r.ok) {
+          err.textContent = text || r.statusText;
+          err.classList.add('show');
+          btn.disabled = false;
+          return;
+        }
+        err.style.color = 'var(--accent)';
+        err.textContent = 'Saved. Waiting for restart…';
+        err.classList.add('show');
+        (function waitForServer() {
+          var n = 0;
+          var max = 50;
+          var t = setInterval(function() {
+            n++;
+            fetch('/', { cache: 'no-store', credentials: 'same-origin' })
+              .then(function(resp) {
+                if (resp.ok) {
+                  clearInterval(t);
+                  window.location.replace('/');
+                }
+              })
+              .catch(function() {});
+            if (n >= max) {
+              clearInterval(t);
+              window.location.replace('/');
+            }
+          }, 300);
+        })();
+      } catch (x) {
+        err.textContent = x.message || 'Network error';
+        err.classList.add('show');
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

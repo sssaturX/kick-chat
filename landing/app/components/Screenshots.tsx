@@ -12,16 +12,16 @@ export default function Screenshots() {
   ]
 
   return (
-    <section id="screenshots" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-saturx-bg-subtle">
+    <section id="screenshots" className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8 bg-saturx-panel/60">
       <div className="max-w-5xl mx-auto">
-        <h2 className="text-2xl sm:text-3xl font-bold text-saturx-dark mb-3">{t.screenshots.title}</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold text-saturx-text mb-3">{t.screenshots.title}</h2>
         <p className="text-saturx-muted mb-10 max-w-2xl">
           {t.screenshots.intro}
         </p>
         <div className="space-y-8">
           {screens.map(({ title, description, src, alt }, i) => (
-            <div key={i} className="rounded-2xl border border-saturx-border bg-white overflow-hidden shadow-sm">
-              <div className="relative aspect-video w-full bg-saturx-bg-subtle">
+            <div key={i} className="rounded-2xl border border-saturx-border bg-saturx-elevated overflow-hidden">
+              <div className="relative aspect-video w-full bg-saturx-bg">
                 <Image
                   src={src}
                   alt={alt}
@@ -31,7 +31,7 @@ export default function Screenshots() {
                 />
               </div>
               <div className="p-6 border-t border-saturx-border">
-                <h3 className="text-lg font-semibold text-saturx-dark">{title}</h3>
+                <h3 className="text-lg font-semibold text-saturx-text">{title}</h3>
                 <p className="mt-2 text-sm text-saturx-muted">{description}</p>
               </div>
             </div>

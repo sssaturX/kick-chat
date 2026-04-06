@@ -1,12 +1,27 @@
+# Не публиковать артефакты сборки / локальные релизы
+/build/
+/dashboard/
+/release/
+/license-server/releases/
+
+# Локальные бинарники, логи, вложенный клон (не для Git)
+*.exe
+/kick
+kick-chat.log
+saturx.log
+telegram-sales-bot/telegram-sales-bot
+telegram-sales-bot/*.db
+test_view/kick-viewbot/
+
 .env
 .kick_access_token
 .kick_accounts.json
 .kick_proxies
-
-# Landing (Next.js)
+resource.syso
+release/.git
+release/.env
+release/.kick_accounts.json
+release/*.log
+release/SaturX/
 landing/node_modules/
 landing/.next/
-landing/out/
-
-# Dashboard
-dashboard/node_modules/

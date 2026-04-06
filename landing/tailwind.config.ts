@@ -10,18 +10,22 @@ const config: Config = {
     extend: {
       colors: {
         saturx: {
-          purple: '#5b21b6',
-          'purple-light': '#7c3aed',
-          'purple-soft': '#ede9fe',
-          dark: '#1f2937',
-          muted: '#6b7280',
-          border: '#e5e7eb',
-          bg: '#ffffff',
-          'bg-subtle': '#f9fafb',
+          bg: '#0f0f0f',
+          panel: '#18181b',
+          elevated: '#1f1f23',
+          border: '#2d2d32',
+          text: '#efeff1',
+          dark: '#efeff1',
+          muted: '#adadb8',
+          dim: '#6b6b7b',
+          green: '#53fc18',
+          'green-hover': '#6fff2e',
+          'green-soft': 'rgb(83 252 24 / 0.15)',
+          error: '#eb0400',
         },
       },
       fontFamily: {
-        sans: ['var(--font-outfit)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
       },
       animation: {
         'glow': 'glow 2s ease-in-out infinite alternate',

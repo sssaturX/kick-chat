@@ -159,6 +159,30 @@ func (s *accountsStore) List() []struct {
 	return out
 }
 
+// NameAt returns the custom label for account index (1-based), or empty if unset.
+func (s *accountsStore) NameAt(accountIndex1 int) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if accountIndex1 < 1 || accountIndex1 > len(s.Accounts) {
+		return ""
+	}
+	return s.Accounts[accountIndex1-1].Name
+}
+
+// SetName sets the display label for an account (1-based index).
+func (s *accountsStore) SetName(accountIndex1 int, name string) error {
+	s.mu.Lock()
+	if accountIndex1 < 1 || accountIndex1 > len(s.Accounts) {
+		s.mu.Unlock()
+		return os.ErrNotExist
+	}
+	s.Accounts[accountIndex1-1].Name = strings.TrimSpace(name)
+	s.mu.Unlock()
+	err := s.Save()
+	s.mu.Lock()
+	return err
+}
+
 // SetProxy задаёт прокси аккаунту по 1-based индексу и сохраняет файл.
 func (s *accountsStore) SetProxy(accountIndex1 int, proxy string) error {
 	s.mu.Lock()

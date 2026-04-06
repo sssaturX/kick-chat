@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Админ — вход</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 420px; margin: 40px auto; padding: 20px; background: #111; color: #eee; }
+    h1 { font-size: 1.25rem; margin-bottom: 8px; }
+    p.sub { font-size: 0.8rem; color: #888; margin: 0 0 20px; }
+    label { display: block; font-size: 0.75rem; color: #888; margin-bottom: 6px; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #333; border-radius: 8px; background: #1a1a1a; color: #eee; font-size: 0.9rem; }
+    button { width: 100%; margin-top: 16px; padding: 10px; border: none; border-radius: 8px; background: #7c3aed; color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+    button:hover { background: #6d28d9; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .err { margin-top: 12px; padding: 10px; background: #3f1d1d; border-radius: 8px; font-size: 0.85rem; color: #fca5a5; display: none; }
+    .err.show { display: block; }
+    a { color: #a78bfa; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>License Server</h1>
+  <p class="sub">Войдите с помощью Admin API Key (тот же, что в <code>ADMIN_API_KEY</code>).</p>
+  <form id="f">
+    <label for="key">Admin API Key</label>
+    <input id="key" type="password" name="api_key" autocomplete="current-password" required>
+    <button type="submit" id="btn">Войти</button>
+    <div class="err" id="err"></div>
+  </form>
+  <p style="margin-top:24px;"><a href="/dev">← Тест API (/dev)</a></p>
+  <script>
+    document.getElementById('f').addEventListener('submit', function(e) {
+      e.preventDefault();
+      var btn = document.getElementById('btn');
+      var err = document.getElementById('err');
+      err.className = 'err';
+      err.textContent = '';
+      btn.disabled = true;
+      fetch('/admin/api/session/login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: document.getElementById('key').value })
+      }).then(function(r) {
+        if (r.ok) {
+          window.location.href = '/';
+          return;
+        }
+        return r.json().then(function(j) {
+          throw new Error(j.error || r.statusText);
+        });
+      }).catch(function(e) {
+        err.textContent = e.message || 'Ошибка входа';
+        err.className = 'err show';
+      }).finally(function() { btn.disabled = false; });
+    });
+  </script>
+</body>
+</html>

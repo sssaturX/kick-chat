@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>SaturX — Download</title>
+  <style>
+    :root { --bg:#0f1114; --card:#1a1d23; --text:#e8eaed; --muted:#9aa0a6; --accent:#3d8bfd; --err:#f28b82; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { background: var(--card); border-radius: 12px; padding: 28px 32px; max-width: 420px; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,.35); }
+    h1 { font-size: 1.35rem; margin: 0 0 8px; font-weight: 600; }
+    p { color: var(--muted); font-size: 0.9rem; line-height: 1.5; margin: 0 0 20px; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+    input { width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid #333842; background: #12151a; color: var(--text); font-size: 1rem; letter-spacing: 0.02em; }
+    input:focus { outline: none; border-color: var(--accent); }
+    button { margin-top: 16px; width: 100%; padding: 12px 16px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; font-size: 0.95rem; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .err { color: var(--err); font-size: 0.85rem; margin-top: 12px; min-height: 1.2em; }
+    .ok { color: #81c995; font-size: 0.85rem; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Download SaturX</h1>
+    <p>Enter the license key you received after purchase (Telegram bot or seller). Each verification gives a one-time download link.</p>
+    <form id="f">
+      <label for="k">License key</label>
+      <input id="k" name="license_key" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX" required>
+      <button type="submit" id="btn">Verify &amp; download</button>
+    </form>
+    <div class="err" id="e"></div>
+    <div class="ok" id="o"></div>
+  </div>
+  <script>
+    const f = document.getElementById('f');
+    const e = document.getElementById('e');
+    const o = document.getElementById('o');
+    const btn = document.getElementById('btn');
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      e.textContent = '';
+      o.textContent = '';
+      btn.disabled = true;
+      try {
+        const r = await fetch('/download/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ license_key: document.getElementById('k').value.trim() })
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          if (j.status === 'expired') e.textContent = 'This license has expired.';
+          else if (j.status === 'revoked') e.textContent = 'This license has been revoked.';
+          else if (j.error === 'invalid_license') e.textContent = 'Invalid license key.';
+          else e.textContent = j.error || 'Something went wrong. Try again later.';
+          return;
+        }
+        if (j.download_path) {
+          o.textContent = 'Starting download…';
+          window.location.href = j.download_path;
+        } else {
+          e.textContent = 'No download URL returned.';
+        }
+      } catch (x) {
+        e.textContent = 'Network error. Check your connection.';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

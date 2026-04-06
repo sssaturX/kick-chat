@@ -3,13 +3,22 @@ services:
     build: .
     ports:
       - "8000:8000"
+    # Do not use env_file for the whole .env: DATABASE_URL=...@localhost would enter the container;
+    # inside Docker, localhost is the app container, not Postgres. Only listed ${VAR}s are read from `.env`.
     environment:
       PORT: "8000"
-      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/licensedb?sslmode=disable"
+      DATABASE_URL: "postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/licensedb?sslmode=disable"
       REDIS_URL: "redis://redis:6379/0"
-      HMAC_SECRET: "${HMAC_SECRET:-change-me-in-production}"
-      ADMIN_API_KEY: "${ADMIN_API_KEY:-santori}"
-      RATE_LIMIT_RPS: "100"
+      HMAC_SECRET: "${HMAC_SECRET}"
+      ADMIN_API_KEY: "${ADMIN_API_KEY}"
+      RATE_LIMIT_RPS: "${RATE_LIMIT_RPS:-100}"
+      ADMIN_SESSION_TTL: "${ADMIN_SESSION_TTL:-24h}"
+      ADMIN_COOKIE_SECURE: "${ADMIN_COOKIE_SECURE:-false}"
+      # Фиксированные пути: пустой DOWNLOAD_* в .env иначе затирал бы дефолт и отключал /download (404).
+      DOWNLOAD_FILE_PATH: "/data/releases/SaturX-release.zip"
+      DOWNLOAD_FILE_NAME: "SaturX-Windows.zip"
+    volumes:
+      - ./releases:/data/releases:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -20,7 +29,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: licensedb
     volumes:
       - pgdata:/var/lib/postgresql/data

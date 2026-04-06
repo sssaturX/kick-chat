@@ -42,3 +42,15 @@ func (r *LicenseRepository) FindByID(ctx context.Context, id uuid.UUID) (*models
 	}
 	return &lic, nil
 }
+
+// ListAll returns all licenses ordered by expiration (soonest first).
+func (r *LicenseRepository) ListAll(ctx context.Context) ([]models.License, error) {
+	var list []models.License
+	err := r.db.WithContext(ctx).Order("expires_at ASC").Find(&list).Error
+	return list, err
+}
+
+// DeleteByKey permanently removes the license row (allows reusing the same license_key later).
+func (r *LicenseRepository) DeleteByKey(ctx context.Context, key string) error {
+	return r.db.WithContext(ctx).Unscoped().Where("license_key = ?", key).Delete(&models.License{}).Error
+}

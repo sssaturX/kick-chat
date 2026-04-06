@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Лицензии — админ</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 0; background: #0c0c0c; color: #e5e5e5; min-height: 100vh; }
+    header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; background: #141414; border-bottom: 1px solid #262626; }
+    header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    header nav { display: flex; gap: 12px; align-items: center; }
+    header a, header button.link { color: #a78bfa; text-decoration: none; font-size: 0.875rem; background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
+    header a:hover, header button.link:hover { text-decoration: underline; }
+    main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+    section { background: #141414; border: 1px solid #262626; border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+    section h2 { margin: 0 0 12px; font-size: 0.95rem; color: #a78bfa; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+    label { display: block; font-size: 0.7rem; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+    input, select { width: 100%; padding: 8px 10px; border: 1px solid #333; border-radius: 6px; background: #1a1a1a; color: #eee; font-size: 0.875rem; }
+    button { padding: 8px 14px; border: none; border-radius: 6px; background: #7c3aed; color: #fff; font-weight: 500; cursor: pointer; font-size: 0.8rem; }
+    button:hover { background: #6d28d9; }
+    button.secondary { background: #374151; }
+    button.secondary:hover { background: #4b5563; }
+    button.danger { background: #b91c1c; }
+    button.danger:hover { background: #991b1b; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #262626; vertical-align: top; }
+    th { color: #888; font-weight: 500; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    tr:hover td { background: #1a1a1a; }
+    .mono { font-family: ui-monospace, monospace; font-size: 0.78rem; word-break: break-all; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
+    .badge.active { background: #14532d; color: #86efac; }
+    .badge.revoked { background: #450a0a; color: #fca5a5; }
+    .badge.expired { background: #422006; color: #fdba74; }
+    .row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .muted { color: #737373; font-size: 0.75rem; }
+    .msg { padding: 10px; border-radius: 8px; margin-bottom: 12px; font-size: 0.85rem; display: none; }
+    .msg.show { display: block; }
+    .msg.ok { background: #14532d; color: #bbf7d0; }
+    .msg.err { background: #450a0a; color: #fecaca; }
+    .loading { opacity: 0.5; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Лицензии</h1>
+    <nav>
+      <a href="/dev">Тест API</a>
+      <button type="button" class="link" id="logout">Выйти</button>
+    </nav>
+  </header>
+  <main>
+    <div class="msg" id="msg"></div>
+    <section>
+      <h2>Новый ключ</h2>
+      <div class="grid">
+        <div>
+          <label>license_key</label>
+          <input id="newKey" placeholder="XXXX-XXXX-XXXX" autocomplete="off">
+        </div>
+        <div>
+          <label>Истекает</label>
+          <input id="newExp" type="datetime-local">
+        </div>
+        <div>
+          <label>max_activations</label>
+          <input id="newMax" type="number" min="1" value="1">
+        </div>
+        <div style="display:flex;align-items:flex-end;">
+          <button type="button" id="btnCreate" style="width:100%;">Создать</button>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2>Все ключи <span class="muted" id="count"></span></h2>
+      <div id="wrap" style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Ключ</th>
+              <th>Статус</th>
+              <th>Истекает</th>
+              <th>Активации</th>
+              <th>HWID</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <p class="muted" id="empty" style="display:none;">Нет записей.</p>
+    </section>
+  </main>
+  <script>
+    function postJSON(url, body) {
+      return fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    }
+    function showMsg(text, ok) {
+      var m = document.getElementById('msg');
+      m.textContent = text;
+      m.className = 'msg show ' + (ok ? 'ok' : 'err');
+      setTimeout(function() { m.className = 'msg'; }, 5000);
+    }
+    function badgeClass(st, exp) {
+      if (st === 'revoked') return 'revoked';
+      if (new Date(exp) <= new Date()) return 'expired';
+      return 'active';
+    }
+    function badgeLabel(st, exp) {
+      if (st === 'revoked') return 'revoked';
+      if (new Date(exp) <= new Date()) return 'expired';
+      return 'active';
+    }
+    function load() {
+      var tbody = document.getElementById('tbody');
+      tbody.innerHTML = '';
+      document.getElementById('wrap').classList.add('loading');
+      fetch('/admin/api/licenses', { credentials: 'include' })
+        .then(function(r) {
+          if (r.status === 401) { window.location.href = '/admin/login'; return Promise.reject(); }
+          if (!r.ok) throw new Error('load failed');
+          return r.json();
+        })
+        .then(function(data) {
+          var list = data.licenses || [];
+          document.getElementById('count').textContent = '(' + list.length + ')';
+          document.getElementById('empty').style.display = list.length ? 'none' : 'block';
+          list.forEach(function(row) {
+            var tr = document.createElement('tr');
+            var bc = badgeClass(row.status, row.expires_at);
+            tr.innerHTML =
+              '<td class="mono">' + escapeHtml(row.license_key) + '</td>' +
+              '<td><span class="badge ' + bc + '">' + badgeLabel(row.status, row.expires_at) + '</span></td>' +
+              '<td>' + escapeHtml(row.expires_at.replace('T', ' ').replace('Z', ' UTC')) + '</td>' +
+              '<td>' + row.current_activations + ' / ' + row.max_activations + '</td>' +
+              '<td class="mono muted">' + (row.hwid ? escapeHtml(row.hwid.substring(0, 24)) + (row.hwid.length > 24 ? '…' : '') : '—') + '</td>' +
+              '<td class="row-actions"></td>';
+            var actions = tr.querySelector('.row-actions');
+            var key = row.license_key;
+            var btnExt = document.createElement('button');
+            btnExt.textContent = 'Продлить';
+            btnExt.onclick = function() { extend(key); };
+            var btnRev = document.createElement('button');
+            btnRev.className = 'secondary';
+            btnRev.textContent = 'Отозвать';
+            btnRev.onclick = function() { revoke(key); };
+            var btnDel = document.createElement('button');
+            btnDel.className = 'danger';
+            btnDel.textContent = 'Удалить';
+            btnDel.onclick = function() { del(key); };
+            actions.appendChild(btnExt);
+            actions.appendChild(btnRev);
+            actions.appendChild(btnDel);
+            tbody.appendChild(tr);
+          });
+        })
+        .catch(function() {})
+        .finally(function() { document.getElementById('wrap').classList.remove('loading'); });
+    }
+    function escapeHtml(s) {
+      var d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+    function extend(key) {
+      var days = window.prompt('Продлить на сколько дней от сейчас?', '30');
+      if (days === null) return;
+      var n = parseInt(days, 10);
+      if (isNaN(n) || n < 1) { showMsg('Некорректное число дней', false); return; }
+      var until = new Date(Date.now() + n * 864e5);
+      var iso = until.toISOString();
+      postJSON('/admin/activate', { license_key: key, expires_at: iso })
+        .then(function(r) {
+          if (r.status === 401) { window.location.href = '/admin/login'; return; }
+          if (!r.ok) return r.json().then(function(j) { throw new Error(j.error || r.statusText); });
+          showMsg('Срок обновлён', true);
+          load();
+        })
+        .catch(function(e) { showMsg(e.message || 'Ошибка', false); });
+    }
+    function revoke(key) {
+      if (!confirm('Отозвать ключ ' + key + '?')) return;
+      postJSON('/admin/revoke', { license_key: key })
+        .then(function(r) {
+          if (r.status === 401) { window.location.href = '/admin/login'; return; }
+          if (!r.ok) return r.json().then(function(j) { throw new Error(j.error || r.statusText); });
+          showMsg('Ключ отозван', true);
+          load();
+        })
+        .catch(function(e) { showMsg(e.message || 'Ошибка', false); });
+    }
+    function del(key) {
+      if (!confirm('Удалить ключ ' + key + ' безвозвратно? Активации будут сброшены.')) return;
+      postJSON('/admin/delete', { license_key: key })
+        .then(function(r) {
+          if (r.status === 401) { window.location.href = '/admin/login'; return; }
+          if (!r.ok) return r.json().then(function(j) { throw new Error(j.error || r.statusText); });
+          showMsg('Ключ удалён', true);
+          load();
+        })
+        .catch(function(e) { showMsg(e.message || 'Ошибка', false); });
+    }
+    document.getElementById('btnCreate').onclick = function() {
+      var key = document.getElementById('newKey').value.trim();
+      var expLocal = document.getElementById('newExp').value;
+      var max = parseInt(document.getElementById('newMax').value, 10) || 1;
+      if (!key) { showMsg('Введите license_key', false); return; }
+      if (!expLocal) { showMsg('Укажите дату истечения', false); return; }
+      var iso = new Date(expLocal).toISOString();
+      postJSON('/admin/licenses', { license_key: key, expires_at: iso, max_activations: max })
+        .then(function(r) {
+          if (r.status === 401) { window.location.href = '/admin/login'; return; }
+          if (!r.ok) return r.json().then(function(j) { throw new Error(j.error || r.statusText); });
+          showMsg('Ключ создан', true);
+          document.getElementById('newKey').value = '';
+          load();
+        })
+        .catch(function(e) { showMsg(e.message || 'Ошибка', false); });
+    };
+    document.getElementById('logout').onclick = function() {
+      fetch('/admin/api/session/logout', { method: 'POST', credentials: 'include' })
+        .then(function() { window.location.href = '/admin/login'; });
+    };
+    (function initExp() {
+      var d = new Date();
+      d.setMonth(d.getMonth() + 1);
+      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+      var local = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      document.getElementById('newExp').value = local;
+    })();
+    load();
+  </script>
+</body>
+</html>
