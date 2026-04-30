@@ -9,7 +9,6 @@ const navLinks = [
   { key: 'home' as const, href: '#hero' },
   { key: 'what' as const, href: '#what-is-saturx' },
   { key: 'features' as const, href: '#features' },
-  { key: 'screenshots' as const, href: '#screenshots' },
   { key: 'faq' as const, href: '#faq' },
   { key: 'getSaturx' as const, href: '#get-saturx' },
 ]

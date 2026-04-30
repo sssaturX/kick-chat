@@ -4,7 +4,7 @@ export const translations = {
   ru: {
     nav: {
       home: 'Главная',
-      what: 'Что такое SATURX',
+      what: 'Продукт',
       features: 'Возможности',
       screenshots: 'Скриншоты',
       faq: 'FAQ',
@@ -207,7 +207,7 @@ export const translations = {
     },
     footer: {
       product: 'Продукт',
-      what: 'Что такое SATURX',
+      what: 'Обзор',
       features: 'Возможности',
       screenshots: 'Скриншоты',
       faq: 'FAQ',
@@ -219,7 +219,7 @@ export const translations = {
   en: {
     nav: {
       home: 'Home',
-      what: 'What is SATURX',
+      what: 'Product',
       features: 'Features',
       screenshots: 'Screenshots',
       faq: 'FAQ',
@@ -422,7 +422,7 @@ export const translations = {
     },
     footer: {
       product: 'Product',
-      what: 'What is SATURX',
+      what: 'Overview',
       features: 'Features',
       screenshots: 'Screenshots',
       faq: 'FAQ',

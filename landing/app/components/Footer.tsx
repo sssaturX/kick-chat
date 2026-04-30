@@ -4,8 +4,8 @@ import type { Translation } from '@/app/lib/translations'
 
 export default function Footer({ t }: { t: Translation }) {
   return (
-    <footer className="footer-shell reveal border-t border-saturx-border px-4 py-14 sm:px-6 lg:px-8">
-      <div className="section-container grid gap-10 md:grid-cols-[1.1fr_1fr_1fr]">
+    <footer className="footer-shell reveal border-t border-saturx-border px-4 py-10 sm:px-6 lg:px-8">
+      <div className="section-container grid gap-8 md:grid-cols-[1.25fr_0.75fr_0.85fr] md:items-start">
         <div>
           <Link href="#hero" className="flex items-center gap-2 rounded-xl text-saturx-text">
             <Logo className="w-7 h-7 text-saturx-green" />
@@ -20,7 +20,6 @@ export default function Footer({ t }: { t: Translation }) {
           <div className="mt-4 grid gap-3 text-sm text-saturx-muted">
             <Link href="#what-is-saturx" className="w-fit rounded-lg hover:text-saturx-text transition-colors">{t.footer.what}</Link>
             <Link href="#features" className="w-fit rounded-lg hover:text-saturx-text transition-colors">{t.footer.features}</Link>
-            <Link href="#screenshots" className="w-fit rounded-lg hover:text-saturx-text transition-colors">{t.footer.screenshots}</Link>
             <Link href="#faq" className="w-fit rounded-lg hover:text-saturx-text transition-colors">{t.footer.faq}</Link>
           </div>
         </div>
@@ -34,7 +33,7 @@ export default function Footer({ t }: { t: Translation }) {
           </div>
         </div>
       </div>
-      <p className="section-container mt-10 border-t border-saturx-border pt-6 text-xs leading-relaxed text-saturx-dim">
+      <p className="section-container mt-8 border-t border-saturx-border pt-5 text-xs leading-relaxed text-saturx-dim">
         (c) {new Date().getFullYear()} SATURX. Kick chat and dashboard desktop tool.
       </p>
     </footer>

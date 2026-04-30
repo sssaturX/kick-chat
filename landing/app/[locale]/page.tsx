@@ -1,10 +1,8 @@
 import Header from '@/app/components/Header'
 import Hero from '@/app/components/Hero'
 import Strip from '@/app/components/Strip'
-import Cards from '@/app/components/Cards'
 import ProductSections from '@/app/components/ProductSections'
 import Features from '@/app/components/Features'
-import Screenshots from '@/app/components/Screenshots'
 import GetSaturX from '@/app/components/GetSaturX'
 import Footer from '@/app/components/Footer'
 import CryptoCursor from '@/app/components/CryptoCursor'
@@ -33,9 +31,7 @@ export default function LocaleHome({ params }: { params: { locale: string } }) {
         <Hero lang={lang} t={t} />
         <Strip t={t} />
         <ProductSections t={t} />
-        <Cards t={t} />
         <Features t={t} />
-        <Screenshots t={t} />
         <GetSaturX t={t} />
       </main>
       <Footer t={t} />
