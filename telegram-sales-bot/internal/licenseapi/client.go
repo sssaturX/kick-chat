@@ -70,6 +70,30 @@ func (c *Client) RevokeLicense(ctx context.Context, licenseKey string) error {
 	return nil
 }
 
+func (c *Client) ValidateLicense(ctx context.Context, licenseKey string) (string, error) {
+	body, _ := json.Marshal(map[string]string{
+		"license_key": licenseKey,
+		"hwid":        "",
+	})
+	status, respBody, err := c.postJSONWithRetry(ctx, c.baseURL+"/validate", body)
+	if err != nil {
+		return "", err
+	}
+	if status != http.StatusOK {
+		return "", fmt.Errorf("validate license: http %d: %s", status, string(respBody))
+	}
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(respBody, &out); err != nil {
+		return "", err
+	}
+	if out.Status == "" {
+		return "unknown", nil
+	}
+	return out.Status, nil
+}
+
 func (c *Client) postJSONWithRetry(ctx context.Context, url string, body []byte) (int, []byte, error) {
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {

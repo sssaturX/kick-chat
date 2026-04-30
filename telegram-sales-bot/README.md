@@ -176,8 +176,8 @@ Set `TELEGRAM_ADMIN_IDS` to your numeric Telegram user id (comma-separated for s
 - `/admin stats` — how many subscriptions + pending invoices  
 - `/admin user <telegram_user_id>` — key, tier, expiry for that buyer  
 - `/admin pending` — recent unpaid Crypto Pay invoices tracked by the bot  
-- `/admin create <telegram_user_id> <standard|pro>` — create license on license server + bot DB; tries to DM the user  
-- `/admin createkey <standard|pro>` — create license on server only (no bot row; hand off key yourself)  
+- `/admin create <telegram_user_id> <standard|pro|trial>` — create license on license server + bot DB; tries to DM the user  
+- `/admin createkey <standard|pro|trial>` — create license on server only (no bot row; hand off key yourself)  
 - `/admin droplocal <telegram_user_id>` — remove bot DB row only (license server unchanged)  
 - `/admin revoke <LICENSE-KEY>` — `POST /admin/revoke` on license server + drop bot row if this key is mapped  
 
@@ -200,6 +200,8 @@ Non-admins who send `/admin` get the same hint as for unknown commands (no “ac
 | `PRICE_STANDARD_USDT` / `PRICE_PRO_USDT` | Invoice amounts (e.g. `29` / `129`) |
 | `SUBSCRIPTION_PERIOD_DAYS` | Standard license length after payment (default `30`) |
 | `SUBSCRIPTION_PERIOD_DAYS_PRO` | Pro license length (default `365` = 1 year) |
+| `TRIAL_PERIOD_HOURS` | Demo key length (default `72` = 3 days) |
+| `TRIAL_MAX_ACTIVATIONS` | Demo key activation limit (default `1`) |
 | `INVOICE_POLL_SECONDS` / `INVOICE_POLL_TIMEOUT_MIN` | How often the bot checks Crypto Pay and how long it keeps polling (default **1440** min ≈ 24h, matching invoice `expires_in`) |
 | `BOT_SQLITE_PATH` | SQLite path (default `telegram-sales-bot.db`) |
 

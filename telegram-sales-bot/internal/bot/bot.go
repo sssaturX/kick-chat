@@ -71,7 +71,7 @@ func (b *Bot) welcomeCaption() string {
 <b>Plans</b>
 • <b>Standard — $29/mo</b>
 • <b>Pro — $129/yr</b>
-• <b>Demo</b> — one-time trial key for a short test
+• <b>Demo</b> — one-time 3-day trial key
 
 Use /promo CODE before purchase if you have a discount. Questions? /support.`
 }
@@ -317,6 +317,7 @@ func (b *Bot) adminUser(ctx context.Context, chatID int64, args []string) {
 		return
 	}
 	days := storage.FormatDaysLeft(sub.ExpiresAt)
+	serverStatus := b.licenseServerStatus(ctx, sub.LicenseKey)
 	un := sub.Username
 	if un != "" {
 		un = "@" + un
@@ -324,8 +325,8 @@ func (b *Bot) adminUser(ctx context.Context, chatID int64, args []string) {
 		un = "(no username)"
 	}
 	b.sendHTML(chatID, fmt.Sprintf(
-		"<b>User</b> <code>%d</code> %s\n<b>Key</b> <code>%s</code>\n<b>Tier</b> %s\n<b>Expires</b> %s UTC\n<b>Days left</b> %d",
-		sub.TelegramUserID, un, sub.LicenseKey, sub.Tier, sub.ExpiresAt.UTC().Format(time.RFC3339), days,
+		"<b>User</b> <code>%d</code> %s\n<b>Key</b> <code>%s</code>\n<b>Tier</b> %s\n<b>Server status</b> %s\n<b>Expires</b> %s UTC\n<b>Days left</b> %d",
+		sub.TelegramUserID, un, sub.LicenseKey, sub.Tier, serverStatus, sub.ExpiresAt.UTC().Format(time.RFC3339), days,
 	))
 }
 
@@ -366,7 +367,7 @@ func (b *Bot) adminDropLocal(ctx context.Context, chatID int64, args []string) {
 
 func (b *Bot) adminCreate(ctx context.Context, chatID int64, args []string) {
 	if len(args) < 3 {
-		b.sendText(chatID, "Usage: /admin create <telegram_user_id> <standard|pro>")
+		b.sendText(chatID, "Usage: /admin create <telegram_user_id> <standard|pro|trial>")
 		return
 	}
 	uid, err := strconv.ParseInt(args[1], 10, 64)
@@ -375,8 +376,8 @@ func (b *Bot) adminCreate(ctx context.Context, chatID int64, args []string) {
 		return
 	}
 	tier, ok := parseTierArg(args[2])
-	if !ok || tier == tierTrial {
-		b.sendText(chatID, "Tier must be standard or pro.")
+	if !ok {
+		b.sendText(chatID, "Tier must be standard, pro, or trial.")
 		return
 	}
 	sub, err := b.store.GetSubscription(ctx, uid)
@@ -390,7 +391,8 @@ func (b *Bot) adminCreate(ctx context.Context, chatID int64, args []string) {
 	}
 	key := GenLicenseKey()
 	exp := time.Now().UTC().Add(b.subscriptionPeriodForTier(tier))
-	if err := b.lic.CreateLicense(ctx, key, exp, b.cfg.MaxActivations); err != nil {
+	maxActivations := b.maxActivationsForTier(tier)
+	if err := b.lic.CreateLicense(ctx, key, exp, maxActivations); err != nil {
 		b.sendText(chatID, "License server error: "+err.Error())
 		return
 	}
@@ -398,7 +400,10 @@ func (b *Bot) adminCreate(ctx context.Context, chatID int64, args []string) {
 		b.sendText(chatID, "Created on server but bot DB failed: "+err.Error()+"\nKey: "+key)
 		return
 	}
-	userHTML := licenseMessage("Your SaturX license", key, tier, exp, b.cfg.MaxActivations)
+	if tier == tierTrial {
+		_ = b.store.InsertTrialClaim(ctx, uid, key, exp)
+	}
+	userHTML := licenseMessage("Your SaturX license", key, tier, exp, maxActivations)
 	if err := b.sendHTMLWithMarkup(uid, userHTML, b.softwareDownloadKeyboard()); err != nil {
 		b.log.Printf("admin create: DM user %d: %v", uid, err)
 		b.sendHTML(chatID, fmt.Sprintf("<b>Created</b> for <code>%d</code> (could not DM).\nKey: <code>%s</code>\nTier: %s\nExpires UTC: %s", uid, key, tier, exp.Format(time.RFC3339)))
@@ -409,21 +414,22 @@ func (b *Bot) adminCreate(ctx context.Context, chatID int64, args []string) {
 
 func (b *Bot) adminCreateKey(ctx context.Context, chatID int64, args []string) {
 	if len(args) < 2 {
-		b.sendText(chatID, "Usage: /admin createkey <standard|pro>")
+		b.sendText(chatID, "Usage: /admin createkey <standard|pro|trial>")
 		return
 	}
 	tier, ok := parseTierArg(args[1])
-	if !ok || tier == tierTrial {
-		b.sendText(chatID, "Tier must be standard or pro.")
+	if !ok {
+		b.sendText(chatID, "Tier must be standard, pro, or trial.")
 		return
 	}
 	key := GenLicenseKey()
 	exp := time.Now().UTC().Add(b.subscriptionPeriodForTier(tier))
-	if err := b.lic.CreateLicense(ctx, key, exp, b.cfg.MaxActivations); err != nil {
+	maxActivations := b.maxActivationsForTier(tier)
+	if err := b.lic.CreateLicense(ctx, key, exp, maxActivations); err != nil {
 		b.sendText(chatID, "License server error: "+err.Error())
 		return
 	}
-	_ = b.sendHTML(chatID, fmt.Sprintf("<b>License created</b> (not in bot DB)\n\nKey: <code>%s</code>\nTier: %s\nExpires UTC: %s\nMax activations: %d", key, tier, exp.Format(time.RFC3339), b.cfg.MaxActivations))
+	_ = b.sendHTML(chatID, fmt.Sprintf("<b>License created</b> (not in bot DB)\n\nKey: <code>%s</code>\nTier: %s\nExpires UTC: %s\nMax activations: %d", key, tier, exp.Format(time.RFC3339), maxActivations))
 }
 
 func (b *Bot) adminRevoke(ctx context.Context, chatID int64, args []string) {
@@ -600,8 +606,8 @@ func (b *Bot) sendAdminHelp(chatID int64) {
 /admin stats — users, subscriptions, invoices, trials, revenue, events
 /admin user TELEGRAM_USER_ID — license row in bot DB
 /admin pending — recent pending/paid invoices
-/admin create TELEGRAM_USER_ID standard|pro — create license on server + bot DB
-/admin createkey standard|pro — create license on server only
+/admin create TELEGRAM_USER_ID standard|pro|trial — create license on server + bot DB
+/admin createkey standard|pro|trial — create license on server only
 /admin droplocal TELEGRAM_USER_ID — delete bot DB only
 /admin revoke LICENSE-KEY — POST /admin/revoke + remove bot row if known
 /admin promo create CODE percent standard|pro|any max_uses days_valid
@@ -780,7 +786,8 @@ func (b *Bot) replyMyLicense(ctx context.Context, chatID, telegramID int64, user
 		return
 	}
 	days := storage.FormatDaysLeft(sub.ExpiresAt)
-	text := fmt.Sprintf("🔑 <b>Your license</b>\n\nKey:\n<code>%s</code>\n\nPlan: %s\nExpires (UTC): %s\nDays left: <b>%d</b>\n\nOpen SaturX, paste the key on first run, then keep this chat for renewal reminders.", sub.LicenseKey, planLabel(sub.Tier), sub.ExpiresAt.UTC().Format(time.RFC3339), days)
+	serverStatus := b.licenseServerStatus(ctx, sub.LicenseKey)
+	text := fmt.Sprintf("🔑 <b>Your license</b>\n\nKey:\n<code>%s</code>\n\nPlan: %s\nServer status: <b>%s</b>\nExpires (UTC): %s\nDays left: <b>%d</b>\n\nOpen SaturX, paste the key on first run, then keep this chat for renewal reminders.", sub.LicenseKey, planLabel(sub.Tier), serverStatus, sub.ExpiresAt.UTC().Format(time.RFC3339), days)
 	_ = b.sendHTMLWithMarkup(chatID, text, b.softwareDownloadKeyboard())
 	_ = username
 }
@@ -796,7 +803,7 @@ func (b *Bot) claimTrial(ctx context.Context, chatID, userID int64, username str
 		return
 	}
 	now := time.Now().UTC()
-	exp := now.Add(time.Duration(b.cfg.TrialPeriodHours) * time.Hour)
+	exp := now.Add(b.subscriptionPeriodForTier(tierTrial))
 	sub, err := b.store.GetSubscription(ctx, userID)
 	if err != nil {
 		b.sendText(chatID, "Database error. Try again later.")
@@ -832,7 +839,7 @@ func (b *Bot) claimTrial(ctx context.Context, chatID, userID int64, username str
 		return
 	}
 	b.event(ctx, &userID, "trial_claimed", map[string]interface{}{"expires_at": exp.Format(time.RFC3339)})
-	text := fmt.Sprintf("🧪 <b>Your SaturX demo key</b>\n\nKey:\n<code>%s</code>\n\nPlan: Demo\nExpires (UTC): %s\nActivations: up to %d device.\n\nThis demo is one-time only. Open SaturX and paste the key on first run.", key, exp.Format(time.RFC3339), b.cfg.TrialMaxActivations)
+	text := fmt.Sprintf("🧪 <b>Your SaturX 3-day demo key</b>\n\nKey:\n<code>%s</code>\n\nPlan: Demo\nExpires (UTC): %s\nActivations: up to %d device.\n\nThis demo is one-time only. Open SaturX and paste the key on first run.", key, exp.Format(time.RFC3339), b.cfg.TrialMaxActivations)
 	_ = b.sendHTMLWithMarkup(chatID, text, b.softwareDownloadKeyboard())
 }
 
@@ -851,11 +858,31 @@ func (b *Bot) subscriptionPeriodForTier(tier string) time.Duration {
 		}
 		return time.Duration(days) * 24 * time.Hour
 	}
+	if tier == tierTrial {
+		hours := b.cfg.TrialPeriodHours
+		if hours < 1 {
+			hours = 72
+		}
+		return time.Duration(hours) * time.Hour
+	}
 	days := b.cfg.PeriodDays
 	if days < 1 {
 		days = 30
 	}
 	return time.Duration(days) * 24 * time.Hour
+}
+
+func (b *Bot) maxActivationsForTier(tier string) int {
+	if tier == tierTrial {
+		if b.cfg.TrialMaxActivations > 0 {
+			return b.cfg.TrialMaxActivations
+		}
+		return 1
+	}
+	if b.cfg.MaxActivations > 0 {
+		return b.cfg.MaxActivations
+	}
+	return 1
 }
 
 func (b *Bot) startCheckout(ctx context.Context, chatID, userID int64, username, tier string) {
@@ -1186,6 +1213,15 @@ func (b *Bot) sendHTMLWithMarkup(chatID int64, html string, markup *tgbotapi.Inl
 
 func licenseMessage(title, key, tier string, exp time.Time, maxActivations int) string {
 	return fmt.Sprintf("✅ <b>%s</b>\n\nLicense key:\n<code>%s</code>\n\nPlan: %s\nExpires (UTC): %s\nActivations: up to %d device(s).\n\nOpen SaturX, paste the key on first run, and keep this chat for renewals and support.", title, key, planLabel(tier), exp.Format(time.RFC3339), maxActivations)
+}
+
+func (b *Bot) licenseServerStatus(ctx context.Context, licenseKey string) string {
+	status, err := b.lic.ValidateLicense(ctx, licenseKey)
+	if err != nil {
+		b.log.Printf("validate license %s: %v", storage.MaskLicenseKey(licenseKey), err)
+		return "unavailable"
+	}
+	return status
 }
 
 func planLabel(tier string) string {

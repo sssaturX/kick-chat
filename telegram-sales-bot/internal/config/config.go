@@ -63,7 +63,7 @@ func Load() (*Config, error) {
 		PeriodDays:          getenvInt("SUBSCRIPTION_PERIOD_DAYS", 30),
 		PeriodDaysPro:       getenvInt("SUBSCRIPTION_PERIOD_DAYS_PRO", 365),
 		MaxActivations:      getenvInt("LICENSE_MAX_ACTIVATIONS", 2),
-		TrialPeriodHours:    getenvInt("TRIAL_PERIOD_HOURS", 24),
+		TrialPeriodHours:    getenvInt("TRIAL_PERIOD_HOURS", 72),
 		TrialMaxActivations: getenvInt("TRIAL_MAX_ACTIVATIONS", 1),
 		WelcomePhotoURL:     strings.TrimSpace(os.Getenv("WELCOME_PHOTO_URL")),
 		WelcomePhotoPath:    strings.TrimSpace(os.Getenv("WELCOME_PHOTO_PATH")),
