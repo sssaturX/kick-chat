@@ -30,6 +30,9 @@ type Config struct {
 
 	// New license: max device activations on license server
 	MaxActivations int
+	// Trial license settings
+	TrialPeriodHours    int
+	TrialMaxActivations int
 
 	// Optional: image URL shown on /start (Telegram will fetch it)
 	WelcomePhotoURL string
@@ -37,11 +40,13 @@ type Config struct {
 	WelcomePhotoPath string
 
 	// Poll invoice every N seconds until paid
-	InvoicePollSeconds int
+	InvoicePollSeconds    int
 	InvoicePollTimeoutMin int
 
 	// Reminder job
 	ReminderHourUTC int // 0-23, default 12
+	// Referral bonus applied to inviter after a referred buyer is fulfilled.
+	ReferralBonusDays int
 
 	// Telegram user IDs allowed to use /admin (comma-separated), e.g. 941135938,123456789
 	TelegramAdminIDs map[int64]struct{}
@@ -53,17 +58,20 @@ type Config struct {
 
 func Load() (*Config, error) {
 	c := &Config{
-		PriceStandardUSDT:     getenv("PRICE_STANDARD_USDT", "29"),
-		PriceProUSDT:          getenv("PRICE_PRO_USDT", "129"),
-		PeriodDays:            getenvInt("SUBSCRIPTION_PERIOD_DAYS", 30),
-		PeriodDaysPro:         getenvInt("SUBSCRIPTION_PERIOD_DAYS_PRO", 365),
-		MaxActivations:        getenvInt("LICENSE_MAX_ACTIVATIONS", 2),
-		WelcomePhotoURL:       strings.TrimSpace(os.Getenv("WELCOME_PHOTO_URL")),
-		WelcomePhotoPath:      strings.TrimSpace(os.Getenv("WELCOME_PHOTO_PATH")),
-		InvoicePollSeconds:    getenvInt("INVOICE_POLL_SECONDS", 12),
+		PriceStandardUSDT:   getenv("PRICE_STANDARD_USDT", "29"),
+		PriceProUSDT:        getenv("PRICE_PRO_USDT", "129"),
+		PeriodDays:          getenvInt("SUBSCRIPTION_PERIOD_DAYS", 30),
+		PeriodDaysPro:       getenvInt("SUBSCRIPTION_PERIOD_DAYS_PRO", 365),
+		MaxActivations:      getenvInt("LICENSE_MAX_ACTIVATIONS", 2),
+		TrialPeriodHours:    getenvInt("TRIAL_PERIOD_HOURS", 24),
+		TrialMaxActivations: getenvInt("TRIAL_MAX_ACTIVATIONS", 1),
+		WelcomePhotoURL:     strings.TrimSpace(os.Getenv("WELCOME_PHOTO_URL")),
+		WelcomePhotoPath:    strings.TrimSpace(os.Getenv("WELCOME_PHOTO_PATH")),
+		InvoicePollSeconds:  getenvInt("INVOICE_POLL_SECONDS", 12),
 		// Default 1440 min = 24h, aligned with Crypto Pay invoice expires_in in cryptopay client
 		InvoicePollTimeoutMin: getenvInt("INVOICE_POLL_TIMEOUT_MIN", 1440),
 		ReminderHourUTC:       getenvInt("REMINDER_HOUR_UTC", 12),
+		ReferralBonusDays:     getenvInt("REFERRAL_BONUS_DAYS", 7),
 	}
 	c.TelegramBotToken = strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN"))
 	if c.TelegramBotToken == "" {

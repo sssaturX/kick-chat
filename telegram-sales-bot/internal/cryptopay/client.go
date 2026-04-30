@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"time"
 )
@@ -37,23 +38,23 @@ type apiResponse struct {
 }
 
 type Invoice struct {
-	InvoiceID       int64  `json:"invoice_id"`
-	Hash            string `json:"hash"`
-	Asset           string `json:"asset"`
-	Amount          string `json:"amount"`
-	PayURL          string `json:"pay_url"`
-	BotInvoiceURL   string `json:"bot_invoice_url"`
-	Status          string `json:"status"`
-	Description     string `json:"description"`
-	Payload         string `json:"payload"`
-	CurrencyType    string `json:"currency_type"`
-	Fiat            string `json:"fiat"`
-	PaidAsset       string `json:"paid_asset"`
-	PaidAmount      string `json:"paid_amount"`
-	PaidFiat        string `json:"paid_fiat"`
-	PaidFiatRate    string `json:"paid_fiat_rate"`
-	PaidUsdRate     string `json:"paid_usd_rate"`
-	PaidAt          string `json:"paid_at"`
+	InvoiceID     int64  `json:"invoice_id"`
+	Hash          string `json:"hash"`
+	Asset         string `json:"asset"`
+	Amount        string `json:"amount"`
+	PayURL        string `json:"pay_url"`
+	BotInvoiceURL string `json:"bot_invoice_url"`
+	Status        string `json:"status"`
+	Description   string `json:"description"`
+	Payload       string `json:"payload"`
+	CurrencyType  string `json:"currency_type"`
+	Fiat          string `json:"fiat"`
+	PaidAsset     string `json:"paid_asset"`
+	PaidAmount    string `json:"paid_amount"`
+	PaidFiat      string `json:"paid_fiat"`
+	PaidFiatRate  string `json:"paid_fiat_rate"`
+	PaidUsdRate   string `json:"paid_usd_rate"`
+	PaidAt        string `json:"paid_at"`
 }
 
 func (c *Client) post(ctx context.Context, method string, params map[string]interface{}) (json.RawMessage, error) {
@@ -64,19 +65,13 @@ func (c *Client) post(ctx context.Context, method string, params map[string]inte
 	if err != nil {
 		return nil, err
 	}
-	url := c.baseURL + "/" + method
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	raw, status, err := c.doWithRetry(ctx, c.baseURL+"/"+method, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Crypto-Pay-API-Token", c.token)
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, err
+	if status < 200 || status >= 300 {
+		return nil, fmt.Errorf("cryptopay %s: http %d: %s", method, status, string(raw))
 	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(resp.Body)
 	var ar apiResponse
 	if err := json.Unmarshal(raw, &ar); err != nil {
 		return nil, fmt.Errorf("cryptopay: invalid json %s: %w", string(raw), err)
@@ -87,16 +82,41 @@ func (c *Client) post(ctx context.Context, method string, params map[string]inte
 	return ar.Result, nil
 }
 
+func (c *Client) doWithRetry(ctx context.Context, url string, body []byte) ([]byte, int, error) {
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+		if err != nil {
+			return nil, 0, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Crypto-Pay-API-Token", c.token)
+		resp, err := c.http.Do(req)
+		if err != nil {
+			lastErr = err
+		} else {
+			raw, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode < 500 {
+				return raw, resp.StatusCode, nil
+			}
+			lastErr = fmt.Errorf("http %d: %s", resp.StatusCode, string(raw))
+		}
+		time.Sleep(time.Duration(200*(attempt+1))*time.Millisecond + time.Duration(rand.Intn(120))*time.Millisecond)
+	}
+	return nil, 0, lastErr
+}
+
 // CreateInvoiceUSDT creates an invoice for amount in USDT (string e.g. "29").
 func (c *Client) CreateInvoiceUSDT(ctx context.Context, amountUSDT, description, payload string) (*Invoice, error) {
 	params := map[string]interface{}{
-		"asset":            "USDT",
-		"amount":           amountUSDT,
-		"description":      description,
-		"payload":          payload,
-		"allow_comments":   false,
-		"allow_anonymous":  false,
-		"expires_in":       86400, // 24h to pay
+		"asset":           "USDT",
+		"amount":          amountUSDT,
+		"description":     description,
+		"payload":         payload,
+		"allow_comments":  false,
+		"allow_anonymous": false,
+		"expires_in":      86400, // 24h to pay
 	}
 	raw, err := c.post(ctx, "createInvoice", params)
 	if err != nil {

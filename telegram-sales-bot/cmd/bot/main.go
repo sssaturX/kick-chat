@@ -17,8 +17,8 @@ import (
 	"kick-chat-go/telegram-sales-bot/internal/licenseapi"
 	"kick-chat-go/telegram-sales-bot/internal/storage"
 
-	"github.com/joho/godotenv"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -55,6 +55,7 @@ func main() {
 	defer cancel()
 
 	go runDailyReminders(ctx, cfg, b)
+	go b.ResumeOpenInvoices(ctx)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -96,7 +97,7 @@ func loadDotenv() {
 // telegramHTTPClient is for long poll getUpdates(timeout=60); no HTTP(S)_PROXY / env proxy.
 func telegramHTTPClient() *http.Client {
 	tr := &http.Transport{
-		Proxy: func(*http.Request) (*url.URL, error) { return nil, nil },
+		Proxy:                 func(*http.Request) (*url.URL, error) { return nil, nil },
 		TLSHandshakeTimeout:   25 * time.Second,
 		ResponseHeaderTimeout: 0,
 		ExpectContinueTimeout: 1 * time.Second,
