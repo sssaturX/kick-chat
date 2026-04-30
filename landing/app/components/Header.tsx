@@ -3,59 +3,74 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Logo from './Logo'
-import { useLang } from '@/app/context/LangContext'
+import type { Lang, Translation } from '@/app/lib/translations'
 
 const navLinks = [
   { key: 'home' as const, href: '#hero' },
+  { key: 'what' as const, href: '#what-is-saturx' },
   { key: 'features' as const, href: '#features' },
   { key: 'screenshots' as const, href: '#screenshots' },
+  { key: 'faq' as const, href: '#faq' },
   { key: 'getSaturx' as const, href: '#get-saturx' },
 ]
 
-export default function Header() {
-  const { t, lang, setLang } = useLang()
+type HeaderCopy = {
+  nav: Translation['nav']
+  cta: Translation['cta']
+}
+
+export default function Header({ lang, copy }: { lang: Lang; copy: HeaderCopy }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const nextLang = lang === 'ru' ? 'en' : 'ru'
+
+  function persistLang() {
+    try {
+      localStorage.setItem('saturx-lang', nextLang)
+    } catch {
+      // ignore
+    }
+  }
 
   return (
-    <header className="sticky top-0 z-50 h-16 bg-saturx-panel border-b border-saturx-border flex items-center justify-between px-4 sm:px-6 lg:px-8">
-      <Link href="#hero" className="flex items-center gap-2.5">
+    <header className="site-header sticky top-0 z-50 flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+      <Link href="#hero" className="flex items-center gap-2.5 rounded-xl">
         <Logo className="w-8 h-8 text-saturx-green" />
-        <span className="text-xl font-semibold tracking-tight text-saturx-text">SaturX</span>
+        <span className="text-lg font-bold tracking-tight text-saturx-text sm:text-xl">SaturX</span>
       </Link>
 
-      <nav className="hidden md:flex items-center gap-8">
+      <nav className="hidden items-center gap-7 lg:flex">
         {navLinks.map(({ key, href }) => (
           <Link
             key={href}
             href={href}
-            className="text-sm text-saturx-muted hover:text-saturx-text transition-colors"
+            className="nav-link"
           >
-            {t.nav[key]}
+            {copy.nav[key]}
           </Link>
         ))}
       </nav>
 
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}
-          className="text-sm text-saturx-muted hover:text-saturx-text px-2.5 py-1.5 rounded-md border border-saturx-border hover:border-saturx-dim hover:bg-saturx-elevated transition-colors"
+        <Link
+          href={`/${nextLang}`}
+          onClick={persistLang}
+          className="premium-button rounded-lg border border-saturx-border px-3 py-2 text-sm font-semibold text-saturx-muted hover:border-saturx-dim hover:bg-saturx-elevated hover:text-saturx-text"
           title={lang === 'ru' ? 'English' : 'Русский'}
         >
           {lang === 'ru' ? 'EN' : 'RU'}
-        </button>
+        </Link>
         <Link
           href="#get-saturx"
-          className="hidden sm:inline-flex px-5 py-2.5 rounded-lg bg-saturx-green hover:bg-saturx-green-hover text-[#0f0f0f] text-sm font-medium transition-colors"
+          className="premium-button primary-glow hidden rounded-lg bg-saturx-green px-5 py-2.5 text-sm font-bold text-[#0f0f0f] hover:bg-saturx-green-hover sm:inline-flex"
         >
-          {t.cta}
+          <span className="relative z-10">{copy.cta}</span>
         </Link>
 
         {/* Mobile menu button */}
         <button
           type="button"
           onClick={() => setMenuOpen((o) => !o)}
-          className="md:hidden p-2 rounded-lg text-saturx-text hover:bg-saturx-elevated"
+          className="rounded-lg p-2 text-saturx-text hover:bg-saturx-elevated lg:hidden"
           aria-expanded={menuOpen}
           aria-label="Menu"
         >
@@ -71,23 +86,23 @@ export default function Header() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="absolute top-full left-0 right-0 md:hidden bg-saturx-panel border-b border-saturx-border py-4 px-4 flex flex-col gap-2">
+        <div className="site-header absolute left-0 right-0 top-full flex flex-col gap-2 border-b border-saturx-border px-4 py-4 lg:hidden">
           {navLinks.map(({ key, href }) => (
             <Link
               key={href}
               href={href}
               onClick={() => setMenuOpen(false)}
-              className="text-sm text-saturx-muted hover:text-saturx-text py-2"
+              className="rounded-lg px-3 py-2.5 text-sm font-semibold text-saturx-muted hover:bg-saturx-elevated hover:text-saturx-text"
             >
-              {t.nav[key]}
+              {copy.nav[key]}
             </Link>
           ))}
           <Link
             href="#get-saturx"
             onClick={() => setMenuOpen(false)}
-            className="mt-2 px-4 py-2.5 rounded-lg bg-saturx-green text-[#0f0f0f] text-sm font-medium text-center"
+            className="premium-button primary-glow mt-2 rounded-lg bg-saturx-green px-4 py-3 text-center text-sm font-bold text-[#0f0f0f]"
           >
-            {t.cta}
+            {copy.cta}
           </Link>
         </div>
       )}

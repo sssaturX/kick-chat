@@ -1,13 +1,9 @@
-'use client'
+import type { Translation } from '@/app/lib/translations'
 
-import { useLang } from '@/app/context/LangContext'
-
-export default function Strip() {
-  const { t } = useLang()
-
+export default function Strip({ t }: { t: Translation }) {
   return (
-    <section className="border-t border-saturx-border py-8 px-4 sm:px-6 lg:px-8 bg-saturx-panel/50">
-      <p className="text-center text-sm text-saturx-muted max-w-2xl mx-auto">
+    <section className="soft-divider section-band reveal px-4 py-8 sm:px-6 lg:px-8">
+      <p className="mx-auto max-w-2xl text-center text-sm font-medium leading-relaxed text-saturx-muted">
         {t.strip.title}
       </p>
     </section>

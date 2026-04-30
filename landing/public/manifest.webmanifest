@@ -1,0 +1,18 @@
+{
+  "name": "SATURX",
+  "short_name": "SATURX",
+  "description": "Desktop Kick chat and dashboard tool for streamers and moderators.",
+  "start_url": "/en",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#53fc18",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

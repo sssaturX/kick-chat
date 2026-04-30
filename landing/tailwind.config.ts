@@ -27,15 +27,6 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
       },
-      animation: {
-        'glow': 'glow 2s ease-in-out infinite alternate',
-      },
-      keyframes: {
-        glow: {
-          '0%': { opacity: '0.6' },
-          '100%': { opacity: '1' },
-        },
-      },
     },
   },
   plugins: [],

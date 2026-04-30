@@ -1,6 +1,13 @@
-# SaturX landing page
+# SATURX landing page
 
-Marketing landing page for selling SaturX (Next.js). Dark theme, purple gradient, frame layout.
+Marketing landing page for SATURX, a desktop Kick chat and dashboard tool for streamers and moderators.
+
+## Stack
+
+- Next.js 14 App Router
+- React 18
+- TypeScript
+- Tailwind CSS
 
 ## Run
 
@@ -10,7 +17,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000/en](http://localhost:3000/en). The root path redirects to `/en`.
 
 ## Build
 
@@ -19,8 +26,16 @@ npm run build
 npm run start
 ```
 
-## Customize
+## SEO
 
-- **Contact link:** In `app/components/GetSaturX.tsx` replace `href="https://github.com"` with your repo URL, Telegram, or contact page.
-- **Screenshots:** Add real app screenshots in `app/components/Screenshots.tsx` (use `<Image>` or `<img src="/screenshot-dashboard.png" />` and put images in `public/`).
-- **Logo:** The logo in `app/components/Logo.tsx` is an SVG (arc + dot). To use your own PNG, replace the `<svg>` with `<img src="/logo.png" alt="SaturX" />` and add `logo.png` to `public/`.
+The landing includes localized Next metadata, canonical URLs, hreflang alternates, Open Graph metadata, Twitter Card metadata, robots, sitemap, manifest, favicon SVG, and JSON-LD for Organization, WebSite, and SoftwareApplication.
+
+Primary domain: `https://saturx.store`
+
+## Content
+
+Text is localized in `app/lib/translations.ts` for English and Russian. Public localized routes are `/en` and `/ru`; `/` redirects to `/en`.
+
+## Assets
+
+Product screenshots live in `public/img/`.

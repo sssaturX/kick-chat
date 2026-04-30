@@ -1,6 +1,4 @@
-'use client'
-
-import { useLang } from '@/app/context/LangContext'
+import type { Translation } from '@/app/lib/translations'
 
 function IconOne() {
   return (
@@ -28,8 +26,7 @@ function IconThree() {
 
 const icons = [IconOne, IconTwo, IconThree]
 
-export default function Features() {
-  const { t } = useLang()
+export default function Features({ t }: { t: Translation }) {
   const blocks = [
     { title: t.featuresBlock.one.title, desc: t.featuresBlock.one.desc },
     { title: t.featuresBlock.two.title, desc: t.featuresBlock.two.desc },
@@ -37,27 +34,27 @@ export default function Features() {
   ]
 
   return (
-    <section id="features" className="py-16 sm:py-20 lg:py-24 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
-        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-saturx-text text-center max-w-2xl mx-auto">
+    <section id="features" className="section-divider section-pad reveal px-4 sm:px-6 lg:px-8">
+      <div className="section-container">
+        <h2 className="section-title mx-auto max-w-3xl text-center">
           {t.featuresBlock.title}
         </h2>
-        <p className="mt-4 text-saturx-muted text-center max-w-xl mx-auto">
+        <p className="section-copy mx-auto mt-4 max-w-2xl text-center">
           {t.featuresBlock.intro}
         </p>
-        <div className="mt-12 sm:mt-16 grid sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10">
+        <div className="stagger mt-12 sm:mt-16 grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           {blocks.map((block, i) => {
             const Icon = icons[i]
             return (
               <div
                 key={i}
-                className="rounded-2xl border border-saturx-border bg-saturx-panel p-6 sm:p-8 hover:border-saturx-green/30 hover:shadow-[0_0_0_1px_rgba(83,252,24,0.1)] transition-all"
+                className="premium-card equal-card reveal border border-saturx-border p-6 sm:p-8"
               >
                 <div className="flex items-center justify-center w-14 h-14 rounded-xl border-2 border-saturx-green/30 bg-saturx-green-soft mb-5">
                   <Icon />
                 </div>
-                <h3 className="text-lg font-semibold text-saturx-text mb-2">{block.title}</h3>
-                <p className="text-sm text-saturx-muted">{block.desc}</p>
+                <h3 className="card-title mb-2">{block.title}</h3>
+                <p className="card-copy">{block.desc}</p>
               </div>
             )
           })}
