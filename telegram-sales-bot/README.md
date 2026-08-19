@@ -11,7 +11,7 @@ Telegram bot for **Crypto Pay** checkout, **automatic license keys** via your ex
 2. **Payment** — creates a **Crypto Pay** invoice; user pays in Telegram. The bot **polls** invoice status (no HTTPS webhook required).
 3. **After payment** — calls `POST /admin/licenses` (new user) or `POST /admin/activate` (renewal) on your license server, then DM’s the key.
 4. **Reminders** — once per day at `REMINDER_HOUR_UTC`, users in the **last 7 days** of a period get up to three nudges (7-day window, 3-day window, last day).
-5. **`/support`** — manager contact [@ssaturx](https://t.me/ssaturx).
+5. **`/support`** — manager contact (set your Telegram handle in the bot code / docs).
 
 ## Requirements
 
@@ -55,7 +55,7 @@ go run ./cmd/bot
    (на Windows: `copy .env.example .env`)  
 4. Заполни **`.env`** минимум:
    - `TELEGRAM_BOT_TOKEN`
-   - `TELEGRAM_ADMIN_IDS` (например `941135938`)
+   - `TELEGRAM_ADMIN_IDS` (your numeric Telegram user id)
    - `CRYPTOPAY_API_TOKEN`
    - `LICENSE_SERVER_URL` — если license-server на этой же машине: `http://127.0.0.1:8000` (порт как у твоего сервера)
    - `LICENSE_ADMIN_API_KEY` — как `ADMIN_API_KEY` на license-server  
@@ -188,7 +188,7 @@ Non-admins who send `/admin` get the same hint as for unknown commands (no “ac
 | Variable | Meaning |
 |----------|---------|
 | `TELEGRAM_BOT_TOKEN` | From @BotFather |
-| `TELEGRAM_ADMIN_IDS` | e.g. `941135938` or `111,222` |
+| `TELEGRAM_ADMIN_IDS` | e.g. `123456789` or `111,222` |
 | `CRYPTOPAY_API_TOKEN` | From Crypto Pay app |
 | `CRYPTOPAY_TESTNET` | `true` for testnet API |
 | `LICENSE_SERVER_URL` | e.g. `https://license.example.com` |
@@ -217,7 +217,7 @@ This build is wired to **Crypto Pay** only. For raw on-chain payments you’d ad
 ## Shipping the desktop app to buyers
 
 - **Prefer one file:** pack the build as **`.zip`** or ship a **single installer** (`.exe` / `.msi`). Telegram is awkward for folders; bots can only send files up to ~**50 MB** as documents.
-- **Gated portal (recommended):** on **license-server** set **`DOWNLOAD_FILE_PATH`** / **`DOWNLOAD_FILE_NAME`** — public page **`GET /download`** checks the key via **`POST /validate`**, then issues a **one-time** download (`Redis`). Point **`SOFTWARE_DOWNLOAD_URL`** at that page (e.g. `https://software.saturx.store/download`). See **license-server README**.
+- **Gated portal (recommended):** on **license-server** set **`DOWNLOAD_FILE_PATH`** / **`DOWNLOAD_FILE_NAME`** — public page **`GET /download`** checks the key via **`POST /validate`**, then issues a **one-time** download (`Redis`). Point **`SOFTWARE_DOWNLOAD_URL`** at that page (e.g. `https://software.example.com/download`). See **license-server README**.
 - **Direct zip URL:** only if you accept that anyone with the link can download; set **`SOFTWARE_DOWNLOAD_URL`** to the raw file.
 - **Sending the file from the bot** is possible only for small builds; every version update requires a new upload. A stable URL is easier to maintain.
 

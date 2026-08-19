@@ -1,34 +1,32 @@
-# Как полностью запустить и протестировать
+# Full local test run
 
-## Вариант 1: Автоматический скрипт
+## Option 1: Script
 
 ```bash
-cd /Users/santori/Desktop/TEST_KICK/kick-chat
+cd /path/to/kick-chat
 chmod +x scripts/run-full-test.sh
 ./scripts/run-full-test.sh
 ```
 
-Скрипт поднимет Postgres и Redis (Docker), запустит License Server и создаст лицензию `TEST-KEY-1234`. В конце выведет команды для запуска Kick-chat — выполните их в **другом терминале**.
+The script starts Postgres and Redis (Docker), runs the License Server, and creates license `TEST-KEY-1234`. It prints commands to start SaturX in **another terminal**.
 
 ---
 
-## Вариант 2: Вручную по шагам
+## Option 2: Manual steps
 
-### 1. Postgres и Redis
+### 1. Postgres and Redis
 
 ```bash
-cd /Users/santori/Desktop/TEST_KICK/kick-chat/license-server
+cd /path/to/kick-chat/license-server
 docker compose up -d postgres redis
 ```
 
-Postgres будет на порту **5434**, Redis — **6379**.
+Postgres is on **5434**, Redis on **6379**.
 
 ### 2. License Server
 
-В том же каталоге или из корня kick-chat:
-
 ```bash
-cd /Users/santori/Desktop/TEST_KICK/kick-chat/license-server
+cd /path/to/kick-chat/license-server
 
 export PORT=8000
 export DATABASE_URL="postgres://postgres:postgres@localhost:5434/licensedb?sslmode=disable"
@@ -39,11 +37,11 @@ export ADMIN_API_KEY="admin-secret"
 go run ./cmd/server
 ```
 
-Оставьте этот терминал открытым. Сервер: http://localhost:8000
+Leave this terminal open. Server: http://localhost:8000
 
-### 3. Создать тестовую лицензию
+### 3. Create a test license
 
-В **новом** терминале:
+In a **new** terminal:
 
 ```bash
 curl -X POST http://localhost:8000/admin/licenses \
@@ -52,37 +50,37 @@ curl -X POST http://localhost:8000/admin/licenses \
   -d '{"license_key":"TEST-KEY-1234","expires_at":"2026-12-31T23:59:59Z","max_activations":3}'
 ```
 
-Должен вернуться JSON с `"status":"ok"`.
+Expect JSON with `"status":"ok"`.
 
-### 4. Запустить Kick-chat (с проверкой лицензии)
+### 4. Run SaturX (with license checks)
 
-В **третьем** терминале:
+In a **third** terminal:
 
 ```bash
-cd /Users/santori/Desktop/TEST_KICK/kick-chat
+cd /path/to/kick-chat
 
-export KICK_CLIENT_ID="ваш_client_id_с_developers.kick.com"
-export KICK_CLIENT_SECRET="ваш_client_secret"
+export KICK_CLIENT_ID="your_client_id_from_developers.kick.com"
+export KICK_CLIENT_SECRET="your_client_secret"
 export LICENSE_SERVER_URL="http://localhost:8000"
 export LICENSE_HMAC_SECRET="test-hmac-secret-32bytes-long"
 
 go run .
 ```
 
-`LICENSE_HMAC_SECRET` должен совпадать с `HMAC_SECRET` на License Server.
+`LICENSE_HMAC_SECRET` must match `HMAC_SECRET` on the License Server.
 
-### 5. Проверка в браузере
+### 5. Browser check
 
-1. Откройте **http://localhost:8080**
-2. Должна открыться страница «License Required» с полем для ключа
-3. Введите **TEST-KEY-1234** и нажмите **Activate**
-4. После успеха откроется основной дашборд (аккаунты, чат, стрим)
+1. Open **http://localhost:8080**
+2. You should see **License Required**
+3. Enter **TEST-KEY-1234** and **Activate**
+4. The main dashboard opens (accounts, chat, stream)
 
 ---
 
-## Без лицензии (как раньше)
+## Without a license (dev)
 
-Если не задавать `LICENSE_SERVER_URL`, дашборд и API работают без проверки лицензии:
+If `LICENSE_SERVER_URL` is unset, the dashboard and API skip license checks:
 
 ```bash
 export KICK_CLIENT_ID="..."
@@ -90,22 +88,24 @@ export KICK_CLIENT_SECRET="..."
 go run .
 ```
 
----
-
-## Проверка накрутки зрителей
-
-1. Запусти лицензию и SaturX по шагам выше (вариант 1 или 2).
-2. В браузере открой **http://localhost:8080**, активируй ключ **TEST-KEY-1234**.
-3. Перейди на вкладку **«Накрутка зрителей»**.
-4. Укажи **канал** (slug из kick.com/YourChannel) и **число зрителей** (1–5000, для теста хватит 5–20).
-5. Нажми **Старт**. В блоке «Онлайн» появятся счётчики: подключено, пинги и т.д.
-6. Остановка — кнопка **Стоп**.
-
-Локально SaturX собирается **без** `-tags release`. Вьюербот ищет в таком порядке: бинарник **viewerbot** (или viewerbot.exe) рядом с saturx/SaturX.exe → затем **kick.py** (если есть) → иначе Go-реализация. Для накрутки через твой Python-код либо положи рядом с saturx собранный `viewerbot` (из `test_view/kick-viewbot/build-viewerbot.sh`), либо запускай из папки проекта, где есть `test_view/kick-viewbot/kick.py`.
+Or set `SKIP_LICENSE=1`.
 
 ---
 
-## Остановка
+## Viewer boost check
 
-- License Server: `Ctrl+C` в терминале, где он запущен
+1. Start license server and SaturX as above.
+2. Open **http://localhost:8080**, activate **TEST-KEY-1234**.
+3. Open the **Viewer boost** tab.
+4. Set the channel slug (`kick.com/<your_channel>`) and viewer target (1–5000; 5–20 is enough for a test).
+5. Click **Start**. Online counters should move.
+6. **Stop** to end the run.
+
+Local SaturX is built **without** `-tags release`. Viewerbot lookup order: `viewerbot` / `viewerbot.exe` next to the app → `kick.py` if present → Go implementation.
+
+---
+
+## Stop
+
+- License Server: `Ctrl+C` in its terminal
 - Docker: `cd license-server && docker compose down`

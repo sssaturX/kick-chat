@@ -114,6 +114,63 @@
       font-size: 0.8125rem;
       font-weight: 500;
     }
+    .stream-status-badge {
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+    }
+    .stream-status-badge.live { background: var(--error); color: #fff; }
+    .stream-status-badge.offline { background: var(--bg-elevated); color: var(--text-muted); }
+    .stream-uptime { color: var(--text-muted); font-size: 0.75rem; white-space: nowrap; }
+    .channel-open-btn {
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    .channel-editor {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .channel-editor input {
+      width: 180px;
+      height: 32px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.8125rem;
+    }
+    .channel-editor input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .channel-editor button {
+      height: 32px;
+      padding: 0 12px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--accent);
+      color: #071004;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+    .channel-editor button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
     .header-meta {
       font-size: 0.8125rem;
       color: var(--text-muted);
@@ -186,6 +243,7 @@
       min-height: 0;
     }
     .tab-content.dashboard-tab .prepared-bar,
+    .tab-content.dashboard-tab .emoji-bar,
     .tab-content.dashboard-tab .autosend-bar,
     .tab-content.dashboard-tab .bottom-bar {
       flex-shrink: 0;
@@ -220,9 +278,139 @@
       stroke-linejoin: round;
       stroke-width: 2;
     }
-    .chat-wrap, .stream-wrap { flex: 1; min-height: 0; position: relative; }
-    .chat-wrap iframe, .stream-wrap iframe {
+    .chat-wrap, .stream-wrap { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+    .stream-wrap iframe {
       position: absolute; inset: 0; width: 100%; height: 100%; border: none;
+    }
+    .custom-chat {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-panel);
+    }
+    .chat-status {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chat-status.connected { color: var(--success); }
+    .chat-status.error { color: var(--error); }
+    .chat-messages {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 10px 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .chat-messages::-webkit-scrollbar { width: 6px; }
+    .chat-messages::-webkit-scrollbar-track { background: transparent; }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .chat-empty {
+      margin: auto;
+      color: var(--text-dim);
+      font-size: 0.8125rem;
+      text-align: center;
+    }
+    .chat-message {
+      padding: 6px 8px;
+      border-radius: var(--radius-sm);
+      transition: background var(--transition);
+    }
+    .chat-message:hover { background: var(--bg-elevated); }
+    .chat-line {
+      color: var(--text);
+      font-size: 0.875rem;
+      line-height: 1.42;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .chat-user {
+      font-weight: 700;
+      font-size: inherit;
+    }
+    .chat-colon {
+      color: var(--text);
+      font-weight: 700;
+      margin-right: 4px;
+    }
+    .chat-time {
+      color: var(--text-dim);
+      font-size: 0.6875rem;
+    }
+    .chat-reply-btn {
+      width: 22px;
+      height: 22px;
+      min-width: 0;
+      padding: 0;
+      margin-left: 5px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      vertical-align: middle;
+      opacity: 0;
+      transform: translateY(-1px);
+      transition: border-color var(--transition), color var(--transition), background var(--transition);
+    }
+    .chat-message:hover .chat-reply-btn,
+    .chat-reply-btn:focus {
+      opacity: 1;
+    }
+    .chat-reply-btn:hover {
+      border-color: var(--border-focus);
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .chat-reply-btn svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 2;
+    }
+    .chat-content {
+      display: inline;
+      color: var(--text);
+    }
+    .chat-emote {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      vertical-align: middle;
+      margin: -3px 1px 0;
+    }
+    .chat-replied {
+      margin-bottom: 5px;
+      padding: 4px 6px;
+      border-left: 2px solid var(--accent);
+      background: var(--bg-elevated);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      line-height: 1.3;
+      overflow: hidden;
+    }
+    .chat-replied strong { color: var(--text); }
+    .chat-replied-text {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .stream-wrap { background: #000; }
     .stream-wrap::before {
@@ -313,6 +501,19 @@
       text-overflow: ellipsis;
     }
     .account-block { margin-bottom: 8px; }
+    .account-order-controls { display: flex; flex-direction: column; gap: 3px; }
+    .account-order-btn {
+      width: 24px;
+      height: 20px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-base);
+      color: var(--text-muted);
+      cursor: pointer;
+      line-height: 1;
+    }
+    .account-order-btn:hover { color: var(--accent); border-color: var(--accent); }
     .account-name-row {
       display: flex;
       align-items: center;
@@ -503,6 +704,53 @@
     .prepared-bar .prepared-btn:hover {
       border-color: var(--accent);
     }
+    .emoji-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .emoji-bar .emoji-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+    .emoji-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .emoji-btn {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color var(--transition), transform var(--transition);
+    }
+    .emoji-btn:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .emoji-btn img {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      pointer-events: none;
+    }
     .autosend-bar input[type="number"] {
       width: 64px;
       padding: 6px 8px;
@@ -633,6 +881,59 @@
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
     }
+    .bottom-bar .reply-wrap {
+      position: relative;
+      width: 250px;
+      min-width: 210px;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      padding: 8px 42px 8px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
+    .bottom-bar .reply-preview {
+      min-width: 0;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      line-height: 1.25;
+      overflow: hidden;
+    }
+    .bottom-bar .reply-preview-user {
+      display: block;
+      color: var(--accent);
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .bottom-bar .reply-preview-text {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .bottom-bar .reply-clear {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      width: 28px;
+      height: 28px;
+      min-width: 0;
+      padding: 0;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      box-shadow: none;
+      transform: translateY(-50%);
+    }
+    .bottom-bar .reply-clear:hover:not(:disabled) {
+      color: var(--accent);
+      box-shadow: none;
+      transform: translateY(-50%);
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .loading {
@@ -709,7 +1010,7 @@
     .tab-content { display: none; grid-column: 1 / -1; min-width: 0; }
     .tab-content.is-active { display: grid; grid-template-columns: 1fr; gap: 12px; align-content: start; width: 100%; min-width: 0; }
     .tab-content.is-active.dashboard-tab { display: flex; flex-direction: column; min-height: 0; min-width: 0; width: 100%; gap: 12px; }
-    #tabViewerbot.is-active { display: flex !important; flex-direction: column; width: 100%; min-width: 0; }
+    #tabViewerbot.is-active, #tabAutosender.is-active { display: flex !important; flex-direction: column; width: 100%; min-width: 0; }
 
     .viewerbot-panel {
       background: var(--bg-panel);
@@ -751,6 +1052,108 @@
     .viewerbot-metric { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
     .viewerbot-metric-value { font-size: 1.25rem; font-weight: 600; color: var(--accent); display: block; }
     .viewerbot-metric-label { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .autosender-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .autosender-panel h2 { margin: 0 0 16px; font-size: 1rem; }
+    .autosender-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 16px; }
+    .autosender-field { display: flex; flex-direction: column; gap: 4px; }
+    .autosender-field label { font-size: 0.75rem; color: var(--text-muted); }
+    .autosender-field input {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-base);
+      color: var(--text);
+      font-size: 0.875rem;
+      font-family: inherit;
+      width: 140px;
+    }
+    .autosender-actions { display: flex; gap: 10px; align-items: center; }
+    .autosender-btn { padding: 10px 20px; border: none; border-radius: var(--radius-sm); font-weight: 500; cursor: pointer; font-size: 0.875rem; }
+    .autosender-btn-start { background: var(--accent); color: #fff; }
+    .autosender-btn-save { background: var(--bg-elevated); color: var(--text); border: 1px solid var(--border); }
+    .autosender-btn-stop { background: var(--error); color: #fff; }
+    .autosender-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .autosender-status { margin-top: 16px; padding: 12px; background: var(--bg-elevated); border-radius: var(--radius-sm); font-size: 0.875rem; color: var(--text-muted); }
+    .autosender-status span { color: var(--text); font-weight: 500; }
+    .autosender-accounts {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .autosender-account {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--text);
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .autosender-account input { width: auto; }
+    .autosender-file { font-size: 0.8125rem; color: var(--text-muted); margin: 0 0 16px; }
+    .autosender-file code { color: var(--text); background: var(--bg-base); padding: 2px 6px; border-radius: 4px; }
+    .event-quick-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 12px 16px;
+      margin-top: 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .event-quick-label { color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .event-preset-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+    .event-preset-card, .event-preset-quick {
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    .event-preset-card.active, .event-preset-quick.active { border-color: var(--accent); color: var(--accent); }
+    .event-preset-stop { background: var(--error); color: #fff; border: none; }
+    .event-presets-editor {
+      margin-bottom: 22px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .event-presets-grid { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(260px, 1fr); gap: 18px; }
+    .event-preset-fields { display: grid; grid-template-columns: 1fr 110px 110px; gap: 10px; }
+    .event-preset-fields input, .event-preset-messages {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-base);
+      color: var(--text);
+      font-family: inherit;
+    }
+    .event-preset-messages { min-height: 130px; resize: vertical; margin-top: 10px; }
+    .event-preset-list { display: flex; flex-direction: column; gap: 8px; }
+    .event-preset-list-row { display: flex; gap: 8px; align-items: center; }
+    .event-preset-list-row .event-preset-card { flex: 1; text-align: left; }
+    @media (max-width: 850px) {
+      .event-presets-grid { grid-template-columns: 1fr; }
+      .event-preset-fields { grid-template-columns: 1fr 1fr; }
+      .event-preset-fields input:first-child { grid-column: 1 / -1; }
+    }
 
     .theme-toggle {
       width: 40px;
@@ -842,8 +1245,16 @@
       <div class="header-left">
         <span class="logo">SaturX</span>
         <span class="channel-badge" id="channelBadge">—</span>
+        <span class="stream-status-badge offline" id="streamStatusBadge">OFFLINE</span>
+        <span class="stream-uptime" id="streamUptime">—</span>
+        <button type="button" class="channel-open-btn" id="openChannelBtn" title="Open the selected Kick channel to follow manually">Open channel</button>
+        <form class="channel-editor" id="channelForm">
+          <input type="text" id="channelInput" placeholder="channel-slug" autocomplete="off">
+          <button type="submit" id="channelSave">Set</button>
+        </form>
         <div class="tabs">
           <button type="button" class="tab-btn active" data-tab="dashboard">Dashboard</button>
+          <button type="button" class="tab-btn" data-tab="autosender">Auto sender</button>
           <button type="button" class="tab-btn" data-tab="viewerbot">Viewer boost</button>
         </div>
       </div>
@@ -868,7 +1279,10 @@
           Chat
         </div>
         <div class="chat-wrap">
-          <iframe id="chatFrame" title="Kick Chat"></iframe>
+          <div class="custom-chat" id="customChat">
+            <div class="chat-status" id="chatStatus">Connecting...</div>
+            <div class="chat-messages" id="chatMessages"></div>
+          </div>
         </div>
       </div>
       <div class="resize-handle" id="resizeChat" data-resize="chat" title="Drag to resize chat"></div>
@@ -889,7 +1303,7 @@
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </span>
           Accounts
-          <span class="header-meta" style="margin-left:auto;font-size:0.75rem;">online = proxy ok</span>
+          <span class="header-meta" style="margin-left:auto;font-size:0.75rem;">online = ready</span>
         </div>
         <details class="accounts-help" id="accountsHelp">
           <summary>How to add Kick accounts</summary>
@@ -911,22 +1325,30 @@
       </div>
     </div>
 
+    <div class="event-quick-bar" id="eventQuickBar" style="display:none;">
+      <span class="event-quick-label">Quick scenarios</span>
+      <div class="event-preset-buttons" id="eventQuickButtons"></div>
+      <button type="button" class="event-preset-card event-preset-stop" id="eventQuickStop">Stop</button>
+      <span class="header-meta" id="eventQuickStatus"></span>
+    </div>
     <div class="prepared-bar" id="preparedMessagesBar" style="display: none;">
       <span class="prepared-label">Presets (messages.txt):</span>
       <div id="preparedMessagesButtons"></div>
     </div>
-    <div class="autosend-bar" id="autosendBar">
-      <span class="autosend-label">Auto-send from selected account:</span>
-      <input type="number" id="autosendInterval" min="10" max="86400" value="60" title="Interval in seconds">
-      <span class="autosend-label">sec</span>
-      <button type="button" id="autosendToggle" class="autosend-btn-on">On</button>
-      <span class="autosend-status" id="autosendStatus" style="display: none;">on, every <span id="autosendIntervalVal">60</span>s</span>
+    <div class="emoji-bar" id="kickEmojiBar">
+      <span class="emoji-label">Kick emoji:</span>
+      <div class="emoji-buttons" id="kickEmojiButtons"></div>
     </div>
     <div class="bottom-bar">
       <div class="select-wrap">
         <select id="accountSelect">
           <option value="">Select account</option>
         </select>
+      </div>
+      <div class="reply-wrap" id="replyWrap" style="display:none;">
+        <span class="reply-preview" id="replyPreview"></span>
+        <input type="hidden" id="replyInput">
+        <button type="button" class="reply-clear" id="replyClear" title="Clear reply" aria-label="Clear reply">x</button>
       </div>
       <div class="input-group">
         <div class="input-wrap">
@@ -939,6 +1361,61 @@
         <span id="sendBtnSpinner" class="spinner" style="display:none;"></span>
       </button>
     </div>
+    </div>
+
+    <div id="tabAutosender" class="tab-content" style="display: none; grid-column: 1 / -1;">
+      <div class="autosender-panel">
+        <h2>Auto sender</h2>
+        <section class="event-presets-editor" id="eventPresetsEditor" style="display:none;">
+          <h3 style="margin:0 0 12px;">Event scenarios</h3>
+          <p class="autosender-file">One click starts the selected accounts. Messages run randomly without repeats, then reshuffle for the next cycle.</p>
+          <div class="event-presets-grid">
+            <div>
+              <div class="event-preset-fields">
+                <input type="text" id="eventPresetName" maxlength="64" placeholder="Scenario name, e.g. Bless you">
+                <input type="number" id="eventPresetMinSec" min="1" max="86400" value="1" title="Min delay, sec">
+                <input type="number" id="eventPresetMaxSec" min="1" max="86400" value="2" title="Max delay, sec">
+              </div>
+              <textarea class="event-preset-messages" id="eventPresetMessages" maxlength="20000" placeholder="One phrase per line&#10;Bless you!&#10;Gesundheit!"></textarea>
+              <div class="autosender-field" style="margin-top:12px;">
+                <label>Accounts for this scenario</label>
+                <div class="autosender-accounts" id="eventPresetAccounts"></div>
+              </div>
+              <div class="autosender-actions" style="margin-top:12px;">
+                <button type="button" class="autosender-btn autosender-btn-save" id="eventPresetNew">New</button>
+                <button type="button" class="autosender-btn autosender-btn-save" id="eventPresetSave">Save scenario</button>
+                <button type="button" class="autosender-btn autosender-btn-start" id="eventPresetSaveStart">Save &amp; start</button>
+              </div>
+            </div>
+            <div>
+              <div class="event-preset-list" id="eventPresetList"><div class="loading loading-dots">Loading</div></div>
+            </div>
+          </div>
+        </section>
+        <p class="autosender-file">Messages are read line by line from <code>auto-sender.txt</code>. Delay is applied between each account send. Preset is stored in <code>auto-sender-presets.json</code>.</p>
+        <div class="autosender-form">
+          <div class="autosender-field">
+            <label>Min delay, sec</label>
+            <input type="number" id="autosenderMinSec" min="1" max="86400" value="60">
+          </div>
+          <div class="autosender-field">
+            <label>Max delay, sec</label>
+            <input type="number" id="autosenderMaxSec" min="1" max="86400" value="120">
+          </div>
+          <div class="autosender-actions">
+            <button type="button" class="autosender-btn autosender-btn-save" id="autosenderSavePreset">Save preset</button>
+            <button type="button" class="autosender-btn autosender-btn-start" id="autosenderStart">Start</button>
+            <button type="button" class="autosender-btn autosender-btn-stop" id="autosenderStop" disabled>Stop</button>
+          </div>
+        </div>
+        <div class="autosender-field">
+          <label>Accounts</label>
+          <div class="autosender-accounts" id="autosenderAccounts">
+            <div class="loading loading-dots">Loading</div>
+          </div>
+        </div>
+        <div class="autosender-status" id="autosenderStatus">Not running.</div>
+      </div>
     </div>
 
     <div id="tabViewerbot" class="tab-content" style="display: none; grid-column: 1 / -1;">
@@ -1017,26 +1494,73 @@
       }
     })();
 
-    const chatFrame = document.getElementById('chatFrame');
     const streamFrame = document.getElementById('streamFrame');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatStatus = document.getElementById('chatStatus');
     const accountsList = document.getElementById('accountsList');
     const accountSelect = document.getElementById('accountSelect');
+    const replyWrap = document.getElementById('replyWrap');
+    const replyPreview = document.getElementById('replyPreview');
+    const replyInput = document.getElementById('replyInput');
+    const replyClear = document.getElementById('replyClear');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
     const sendBtnText = document.getElementById('sendBtnText');
     const sendBtnSpinner = document.getElementById('sendBtnSpinner');
     const charCount = document.getElementById('charCount');
     const channelBadge = document.getElementById('channelBadge');
+    const channelForm = document.getElementById('channelForm');
+    const channelInput = document.getElementById('channelInput');
+    const channelSave = document.getElementById('channelSave');
+    const streamStatusBadge = document.getElementById('streamStatusBadge');
+    const streamUptime = document.getElementById('streamUptime');
+    const openChannelBtn = document.getElementById('openChannelBtn');
     const lastUpdate = document.getElementById('lastUpdate');
     let channelSlug = '';
+    let adminFeatures = false;
+    let streamStatusData = null;
     let accounts = [];
     let statusMap = {};
     let runnersMap = {};
     let lastUpdateTime = null;
     let autosendEnabled = false;
+    let autosendAccountIds = [];
+    let eventPresets = [];
+    let activeEventPreset = '';
+    let editingEventPreset = '';
+    let eventPresetDraftStableIds = [];
+    let chatEventSource = null;
+    let selectedReply = null;
+    const renderedChatMessages = new Set();
+    let kickEmojiShortcodes = [
+      { id: '37226', name: 'KEKW', text: '[emote:37226:KEKW]', image: 'https://files.kick.com/emotes/37226/fullsize' },
+      { id: '37231', name: 'PatrickBoo', text: '[emote:37231:PatrickBoo]', image: 'https://files.kick.com/emotes/37231/fullsize' },
+      { id: '37236', name: 'ThisIsFine', text: '[emote:37236:ThisIsFine]', image: 'https://files.kick.com/emotes/37236/fullsize' },
+      { id: '37244', name: 'modCheck', text: '[emote:37244:modCheck]', image: 'https://files.kick.com/emotes/37244/fullsize' },
+      { id: '39273', name: 'MuteD', text: '[emote:39273:MuteD]', image: 'https://files.kick.com/emotes/39273/fullsize' },
+      { id: '37239', name: 'WeSmart', text: '[emote:37239:WeSmart]', image: 'https://files.kick.com/emotes/37239/fullsize' },
+      { id: '37233', name: 'PogU', text: '[emote:37233:PogU]', image: 'https://files.kick.com/emotes/37233/fullsize' },
+      { id: '37227', name: 'LULW', text: '[emote:37227:LULW]', image: 'https://files.kick.com/emotes/37227/fullsize' },
+      { id: '37218', name: 'Clap', text: '[emote:37218:Clap]', image: 'https://files.kick.com/emotes/37218/fullsize' },
+      { id: '37224', name: 'GIGACHAD', text: '[emote:37224:GIGACHAD]', image: 'https://files.kick.com/emotes/37224/fullsize' }
+    ];
+    const legacyKickEmojiShortcodes = [
+      { name: 'emojiCheerful', text: '\uD83D\uDE04', image: '/emotes/emojiCheerful.gif' },
+      { name: 'emojiAngry', text: '\uD83D\uDE21', image: '/emotes/emojiAngry.gif' },
+      { name: 'emojiBlowKiss', text: '\uD83D\uDE18', image: '/emotes/emojiBlowKiss.gif' },
+      { name: 'emojiAstonished', text: '\uD83D\uDE32', image: '/emotes/emojiAstonished.gif' },
+      { name: 'emojiAngel', text: '\uD83D\uDE07', image: '/emotes/emojiAngel.gif' },
+      { name: 'emojiAwake', text: '\uD83D\uDE33', image: '/emotes/emojiAwake.gif' },
+      { name: 'emojiBubbly', text: '\uD83E\uDEE7', image: '/emotes/emojiBubbly.gif' },
+      { name: 'emojiClown', text: '\uD83E\uDD21', image: '/emotes/emojiClown.gif' },
+      { name: 'emojiCool', text: '\uD83D\uDE0E', image: '/emotes/emojiCool.gif' },
+      { name: 'emojiCrave', text: '\uD83E\uDD24', image: '/emotes/emojiCrave.gif' }
+    ];
 
     /** Persists dashboard account choice across reloads and periodic /api/accounts refresh (see setInterval loadAccounts). */
     const LS_SELECTED_ACCOUNT = 'saturx_dashboard_selected_account_id';
+    const LS_AUTOSENDER_MIN_SEC = 'saturx_autosender_min_sec';
+    const LS_AUTOSENDER_MAX_SEC = 'saturx_autosender_max_sec';
     function readSavedAccountId() {
       try { return localStorage.getItem(LS_SELECTED_ACCOUNT); } catch (_) { return null; }
     }
@@ -1045,6 +1569,12 @@
         if (id) localStorage.setItem(LS_SELECTED_ACCOUNT, String(id));
         else localStorage.removeItem(LS_SELECTED_ACCOUNT);
       } catch (_) {}
+    }
+    function readSavedValue(key) {
+      try { return localStorage.getItem(key); } catch (_) { return null; }
+    }
+    function writeSavedValue(key, value) {
+      try { localStorage.setItem(key, String(value)); } catch (_) {}
     }
 
     function showToastMessage(msg, kind) {
@@ -1102,15 +1632,125 @@
     async function loadChannel() {
       const data = await fetchJSON('/api/channel');
       channelSlug = (data && data.slug) || '';
+      adminFeatures = !!(data && data.admin_release);
+      updateAdminFeatureVisibility();
+      updateChannelUI();
+    }
+
+    function updateAdminFeatureVisibility() {
+      const quick = document.getElementById('eventQuickBar');
+      const editor = document.getElementById('eventPresetsEditor');
+      if (quick) quick.style.display = adminFeatures ? 'flex' : 'none';
+      if (editor) editor.style.display = adminFeatures ? 'block' : 'none';
+    }
+
+    function updateChannelUI() {
       if (channelBadge) channelBadge.textContent = channelSlug || '—';
-      if (channelSlug && streamFrame && chatFrame) {
-        streamFrame.src = 'https://player.kick.com/' + channelSlug;
-        chatFrame.src = 'https://kick.com/' + channelSlug + '?lang=en';
+      if (channelInput && document.activeElement !== channelInput) channelInput.value = channelSlug || '';
+      if (streamFrame) {
+        streamFrame.src = channelSlug ? ('https://player.kick.com/' + channelSlug) : 'about:blank';
       }
+      const viewerChannel = document.getElementById('viewerbotChannel');
+      if (viewerChannel && viewerChannel.value === '') viewerChannel.placeholder = channelSlug || 'channel-slug';
+      if (openChannelBtn) openChannelBtn.disabled = !channelSlug;
+    }
+
+    function formatStreamDuration(totalSeconds) {
+      totalSeconds = Math.max(0, Math.floor(totalSeconds || 0));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      if (hours > 0) return hours + 'h ' + String(minutes).padStart(2, '0') + 'm';
+      return minutes + 'm ' + String(seconds).padStart(2, '0') + 's';
+    }
+
+    function renderStreamStatus() {
+      if (!streamStatusBadge || !streamUptime) return;
+      if (!streamStatusData) {
+        streamStatusBadge.className = 'stream-status-badge offline';
+        streamStatusBadge.textContent = 'UNKNOWN';
+        streamUptime.textContent = 'Status unavailable';
+        return;
+      }
+      if (!streamStatusData.is_live) {
+        streamStatusBadge.className = 'stream-status-badge offline';
+        streamStatusBadge.textContent = 'OFFLINE';
+        streamUptime.textContent = 'Not live';
+        return;
+      }
+      let seconds = Number(streamStatusData.uptime_seconds) || 0;
+      if (streamStatusData.start_time) {
+        const started = new Date(streamStatusData.start_time).getTime();
+        if (started) seconds = Math.max(0, Math.floor((Date.now() - started) / 1000));
+      }
+      streamStatusBadge.className = 'stream-status-badge live';
+      streamStatusBadge.textContent = 'LIVE';
+      const viewers = Number(streamStatusData.viewer_count) || 0;
+      streamUptime.textContent = formatStreamDuration(seconds) + ' · ' + viewers + ' viewers';
+      streamUptime.title = streamStatusData.title || '';
+    }
+
+    async function loadStreamStatus() {
+      if (!channelSlug) {
+        streamStatusData = null;
+        renderStreamStatus();
+        return;
+      }
+      try {
+        streamStatusData = await fetchJSON('/api/stream/status');
+      } catch (_) {
+        streamStatusData = null;
+      }
+      renderStreamStatus();
+    }
+
+    if (openChannelBtn) {
+      openChannelBtn.addEventListener('click', function () {
+        if (channelSlug) window.open('https://kick.com/' + encodeURIComponent(channelSlug), '_blank', 'noopener,noreferrer');
+      });
     }
 
     function accountDisplayName(a) {
       return (a.name && String(a.name).trim()) ? a.name : ('Account ' + a.id);
+    }
+
+    function rebuildAccountSelectOrder() {
+      if (!accountSelect) return;
+      const selected = accountSelect.value;
+      accountSelect.innerHTML = '<option value="">Select account</option>' +
+        accounts.map(a => '<option value="' + a.id + '">' + a.id + ': ' + escapeHtml(accountDisplayName(a)) + (statusMap[a.id] ? ' ✓' : '') + '</option>').join('');
+      accountSelect.value = selected;
+    }
+
+    async function moveAccountDisplay(stableId, direction) {
+      const index = accounts.findIndex(function (a) { return Number(a.stable_id) === Number(stableId); });
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= accounts.length) return;
+      const tmp = accounts[index];
+      accounts[index] = accounts[target];
+      accounts[target] = tmp;
+      if (accountsList) {
+        const block = accountsList.querySelector('.account-block[data-stable-id="' + stableId + '"]');
+        const targetBlock = accountsList.querySelector('.account-block[data-stable-id="' + accounts[index].stable_id + '"]');
+        if (block && targetBlock) {
+          if (direction < 0) accountsList.insertBefore(block, targetBlock);
+          else accountsList.insertBefore(targetBlock, block);
+        }
+      }
+      rebuildAccountSelectOrder();
+      renderAutosenderAccounts();
+      renderEventPresetAccounts();
+      try {
+        const r = await fetch('/api/accounts/order', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: accounts.map(function (a) { return Number(a.stable_id); }) })
+        });
+        if (!r.ok) throw new Error(await r.text());
+      } catch (e) {
+        showError((e && e.message) || 'Could not save account order');
+        await loadAccounts();
+      }
     }
 
     /** Updates display name in list and select without full dashboard reload. */
@@ -1276,10 +1916,14 @@
         const proxyVal = (a.proxy != null && a.proxy !== undefined) ? a.proxy : '';
         const disp = accountDisplayName(a);
         const nameVal = (a.name != null && a.name !== undefined) ? String(a.name) : '';
-        return '<div class="account-block">' +
+        const orderControls = adminFeatures ? '<div class="account-order-controls">' +
+          '<button type="button" class="account-order-btn account-order-up" data-stable-id="' + a.stable_id + '" title="Move up">▲</button>' +
+          '<button type="button" class="account-order-btn account-order-down" data-stable-id="' + a.stable_id + '" title="Move down">▼</button></div>' : '';
+        return '<div class="account-block" data-stable-id="' + a.stable_id + '">' +
           '<div class="account-row' + (a.current ? ' selected' : '') + '" data-id="' + a.id + '" title="Account #' + a.id + (runnerTip ? '\n' + runnerTip : '') + '">' +
           '<span class="avatar">' + escapeHtml(getInitial(disp)) + '</span>' +
           '<div class="info"><div class="name">' + escapeHtml(disp) + '</div><div class="id">#' + a.id + '</div>' + runnerLine + '</div>' +
+          orderControls +
           '<div class="status-wrap"><span class="status ' + statusClass + pulse + '" title="' + label + '"></span><span class="status-label">' + label + '</span></div></div>' +
           '<div class="account-name-row" data-id="' + a.id + '">' +
           '<span class="account-name-label">Name</span>' +
@@ -1300,11 +1944,13 @@
       }
 
       loadPreparedMessages();
-      loadAutosendStatus();
+      if (autosendEnabled) loadAutosendStatus();
+      else renderAutosenderAccounts();
+      if (adminFeatures) renderEventPresetAccounts();
 
       accountsList.querySelectorAll('.account-row').forEach(el => {
         el.addEventListener('click', (ev) => {
-          if (ev.target.closest('.account-proxy') || ev.target.closest('.account-name-row')) return;
+          if (ev.target.closest('.account-proxy') || ev.target.closest('.account-name-row') || ev.target.closest('.account-order-controls')) return;
           const id = el.dataset.id;
           accountSelect.value = id;
           if (id) {
@@ -1315,6 +1961,12 @@
           }
           selectRow();
           messageInput.focus();
+        });
+      });
+      accountsList.querySelectorAll('.account-order-up, .account-order-down').forEach(function (btn) {
+        btn.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          moveAccountDisplay(parseInt(btn.dataset.stableId, 10), btn.classList.contains('account-order-up') ? -1 : 1);
         });
       });
       accountsList.querySelectorAll('.name-change-btn').forEach(btn => {
@@ -1406,6 +2058,38 @@
       setLastUpdate();
     }
 
+    function renderKickEmojiBar() {
+      const bar = document.getElementById('kickEmojiBar');
+      const container = document.getElementById('kickEmojiButtons');
+      if (!bar || !container) return;
+      container.innerHTML = '';
+      kickEmojiShortcodes.forEach(function (emoji) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'emoji-btn';
+        btn.title = emoji.name;
+        btn.setAttribute('aria-label', emoji.name);
+        const img = document.createElement('img');
+        img.src = emoji.image;
+        img.alt = '';
+        btn.appendChild(img);
+        btn.addEventListener('click', function () { sendMessage(emoji.text); });
+        container.appendChild(btn);
+      });
+      bar.style.display = 'flex';
+    }
+
+    async function loadKickEmotes() {
+      try {
+        const data = await fetchJSON('/api/emotes');
+        const emotes = data && Array.isArray(data.emotes) ? data.emotes.map(normalizeKickEmote).filter(Boolean) : [];
+        if (emotes.length > 0) {
+          kickEmojiShortcodes = emotes;
+          rebuildChatEmoteIndex();
+        }
+      } catch (_) {}
+    }
+
     async function loadPreparedMessages() {
       const bar = document.getElementById('preparedMessagesBar');
       const container = document.getElementById('preparedMessagesButtons');
@@ -1433,53 +2117,348 @@
       }
     }
 
+    function renderEventPresetAccounts(selectedIds) {
+      const box = document.getElementById('eventPresetAccounts');
+      if (!box || !adminFeatures) return;
+      if (Array.isArray(selectedIds)) eventPresetDraftStableIds = selectedIds.map(Number);
+      const selected = new Set(eventPresetDraftStableIds.map(String));
+      if (!accounts.length) {
+        box.innerHTML = '<div class="toast" style="position:static;margin:0;">No accounts. Add accounts first.</div>';
+        return;
+      }
+      box.innerHTML = accounts.map(function (a) {
+        const stableId = Number(a.stable_id);
+        return '<label class="autosender-account">' +
+          '<input type="checkbox" class="event-preset-account-check" value="' + stableId + '"' + (selected.has(String(stableId)) ? ' checked' : '') + '>' +
+          '<span>#' + a.id + ' ' + escapeHtml(accountDisplayName(a)) + '</span></label>';
+      }).join('');
+      box.querySelectorAll('.event-preset-account-check').forEach(function (el) {
+        el.addEventListener('change', function () {
+          eventPresetDraftStableIds = selectedEventPresetStableIDs();
+        });
+      });
+    }
+
+    function selectedEventPresetStableIDs() {
+      return Array.from(document.querySelectorAll('.event-preset-account-check:checked'))
+        .map(function (el) { return parseInt(el.value, 10); })
+        .filter(function (id) { return id > 0; });
+    }
+
+    function clearEventPresetEditor() {
+      editingEventPreset = '';
+      eventPresetDraftStableIds = [];
+      const name = document.getElementById('eventPresetName');
+      const messages = document.getElementById('eventPresetMessages');
+      const min = document.getElementById('eventPresetMinSec');
+      const max = document.getElementById('eventPresetMaxSec');
+      if (name) name.value = '';
+      if (messages) messages.value = '';
+      if (min) min.value = '1';
+      if (max) max.value = '2';
+      renderEventPresetAccounts([]);
+    }
+
+    function editEventPreset(index) {
+      const preset = eventPresets[index];
+      if (!preset) return;
+      editingEventPreset = preset.name;
+      const name = document.getElementById('eventPresetName');
+      const messages = document.getElementById('eventPresetMessages');
+      const min = document.getElementById('eventPresetMinSec');
+      const max = document.getElementById('eventPresetMaxSec');
+      if (name) name.value = preset.name || '';
+      if (messages) messages.value = Array.isArray(preset.messages) ? preset.messages.join('\n') : '';
+      if (min) min.value = preset.min_sec || 1;
+      if (max) max.value = preset.max_sec || preset.min_sec || 1;
+      renderEventPresetAccounts(Array.isArray(preset.account_stable_ids) ? preset.account_stable_ids : []);
+    }
+
+    function renderEventPresets() {
+      const list = document.getElementById('eventPresetList');
+      const quickButtons = document.getElementById('eventQuickButtons');
+      const quickStatus = document.getElementById('eventQuickStatus');
+      if (!adminFeatures) return;
+      if (quickStatus) quickStatus.textContent = activeEventPreset ? ('Running: ' + activeEventPreset) : 'Stopped';
+      const quickHTML = eventPresets.map(function (preset, index) {
+        return '<button type="button" class="event-preset-quick' + (preset.name === activeEventPreset ? ' active' : '') + '" data-event-index="' + index + '">' + escapeHtml(preset.name) + '</button>';
+      }).join('');
+      if (quickButtons) quickButtons.innerHTML = quickHTML || '<span class="header-meta">Create a scenario in Auto sender.</span>';
+      if (list) {
+        list.innerHTML = eventPresets.map(function (preset, index) {
+          const count = Array.isArray(preset.messages) ? preset.messages.length : 0;
+          return '<div class="event-preset-list-row">' +
+            '<button type="button" class="event-preset-card' + (preset.name === activeEventPreset ? ' active' : '') + '" data-edit-index="' + index + '">' +
+            '<strong>' + escapeHtml(preset.name) + '</strong><br><span class="header-meta">' + count + ' phrase(s) · ' + (preset.min_sec || 1) + '-' + (preset.max_sec || preset.min_sec || 1) + 's</span></button>' +
+            '<button type="button" class="autosender-btn autosender-btn-start" data-start-index="' + index + '">Start</button>' +
+            '<button type="button" class="autosender-btn autosender-btn-stop" data-delete-index="' + index + '">Delete</button></div>';
+        }).join('') || '<div class="autosender-status">No scenarios yet.</div>';
+      }
+      document.querySelectorAll('[data-event-index], [data-start-index]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const raw = btn.dataset.eventIndex != null ? btn.dataset.eventIndex : btn.dataset.startIndex;
+          const preset = eventPresets[parseInt(raw, 10)];
+          if (preset) startEventPreset(preset.name);
+        });
+      });
+      if (list) {
+        list.querySelectorAll('[data-edit-index]').forEach(function (btn) {
+          btn.addEventListener('click', function () { editEventPreset(parseInt(btn.dataset.editIndex, 10)); });
+        });
+        list.querySelectorAll('[data-delete-index]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            const preset = eventPresets[parseInt(btn.dataset.deleteIndex, 10)];
+            if (preset) deleteEventPreset(preset.name);
+          });
+        });
+      }
+    }
+
+    async function loadEventPresets() {
+      if (!adminFeatures) return;
+      try {
+        const data = await fetchJSON('/api/autosend/presets');
+        eventPresets = Array.isArray(data && data.presets) ? data.presets.filter(function (p) {
+          return Array.isArray(p.messages) && p.messages.length > 0;
+        }) : [];
+        activeEventPreset = (data && data.active) || '';
+        renderEventPresets();
+        if (!editingEventPreset) renderEventPresetAccounts();
+      } catch (e) {
+        eventPresets = [];
+        renderEventPresets();
+      }
+    }
+
+    async function saveEventPreset(startAfterSave) {
+      const nameEl = document.getElementById('eventPresetName');
+      const messagesEl = document.getElementById('eventPresetMessages');
+      const minEl = document.getElementById('eventPresetMinSec');
+      const maxEl = document.getElementById('eventPresetMaxSec');
+      const name = nameEl ? nameEl.value.trim() : '';
+      const messages = messagesEl ? messagesEl.value.split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean) : [];
+      const stableIds = selectedEventPresetStableIDs();
+      let minSec = Math.max(1, Math.min(86400, parseInt(minEl && minEl.value, 10) || 1));
+      let maxSec = Math.max(minSec, Math.min(86400, parseInt(maxEl && maxEl.value, 10) || minSec));
+      if (!name || messages.length === 0 || stableIds.length === 0) {
+        showError('Scenario needs a name, at least one phrase, and at least one account');
+        return;
+      }
+      try {
+        const r = await fetch('/api/autosend/presets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save', name: name, original_name: editingEventPreset, messages: messages, account_stable_ids: stableIds, min_sec: minSec, max_sec: maxSec })
+        });
+        const text = await r.text();
+        if (!r.ok) throw new Error(text || r.statusText);
+        editingEventPreset = name;
+        await loadEventPresets();
+        const index = eventPresets.findIndex(function (p) { return p.name === name; });
+        if (index >= 0) editEventPreset(index);
+        if (startAfterSave) await startEventPreset(name);
+        else showError('Scenario saved: ' + name);
+      } catch (e) { showError((e && e.message) || 'Could not save scenario'); }
+    }
+
+    async function startEventPreset(name) {
+      try {
+        const r = await fetch('/api/autosend/presets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'start', name: name })
+        });
+        const text = await r.text();
+        if (!r.ok) throw new Error(text || r.statusText);
+        activeEventPreset = name;
+        autosendEnabled = true;
+        await loadAutosendStatus();
+        renderEventPresets();
+        showError('Scenario started: ' + name);
+      } catch (e) { showError((e && e.message) || 'Could not start scenario'); }
+    }
+
+    async function deleteEventPreset(name) {
+      if (!window.confirm('Delete scenario "' + name + '"?')) return;
+      try {
+        const r = await fetch('/api/autosend/presets?name=' + encodeURIComponent(name), { method: 'DELETE' });
+        const text = await r.text();
+        if (!r.ok) throw new Error(text || r.statusText);
+        if (editingEventPreset === name) clearEventPresetEditor();
+        await loadEventPresets();
+      } catch (e) { showError((e && e.message) || 'Could not delete scenario'); }
+    }
+
+    function renderAutosenderAccounts() {
+      const box = document.getElementById('autosenderAccounts');
+      if (!box) return;
+      if (!accounts.length) {
+        box.innerHTML = '<div class="toast" style="position:static;margin:0;">No accounts. Add accounts first.</div>';
+        return;
+      }
+      const selected = new Set(autosendAccountIds.map(String));
+      box.innerHTML = accounts.map(function (a) {
+        const checked = selected.has(String(a.id)) ? ' checked' : '';
+        const online = statusMap[a.id] ? ' online' : '';
+        return '<label class="autosender-account">' +
+          '<input type="checkbox" class="autosender-account-check" value="' + a.id + '"' + checked + '>' +
+          '<span>#' + a.id + ' ' + escapeHtml(accountDisplayName(a)) + online + '</span>' +
+          '</label>';
+      }).join('');
+      box.querySelectorAll('.autosender-account-check').forEach(function (el) {
+        el.addEventListener('change', function () {
+          if (!autosendEnabled) autosendAccountIds = selectedAutosenderAccountIds();
+          updateAutosendUI();
+        });
+      });
+    }
+
+    function selectedAutosenderAccountIds() {
+      return Array.from(document.querySelectorAll('.autosender-account-check:checked'))
+        .map(function (el) { return parseInt(el.value, 10); })
+        .filter(function (id) { return id > 0; });
+    }
+
     async function loadAutosendStatus() {
       try {
         const data = await fetchJSON('/api/autosend');
         if (!data || typeof data !== 'object') return;
         autosendEnabled = !!data.enabled;
-        if (data.interval_sec != null) {
-          const el = document.getElementById('autosendInterval');
-          if (el) el.value = Math.max(10, Math.min(86400, data.interval_sec));
+        activeEventPreset = data.active_preset || '';
+        const serverAccountIds = Array.isArray(data.account_ids) ? data.account_ids : [];
+        const draftAccountIds = selectedAutosenderAccountIds();
+        autosendAccountIds = (autosendEnabled || draftAccountIds.length === 0) ? serverAccountIds : draftAccountIds;
+        const minEl = document.getElementById('autosenderMinSec');
+        const maxEl = document.getElementById('autosenderMaxSec');
+        if (autosendEnabled) {
+          if (minEl && data.min_sec != null) minEl.value = Math.max(1, Math.min(86400, data.min_sec));
+          if (maxEl && data.max_sec != null) maxEl.value = Math.max(1, Math.min(86400, data.max_sec));
+        } else {
+          const savedMin = readSavedValue(LS_AUTOSENDER_MIN_SEC);
+          const savedMax = readSavedValue(LS_AUTOSENDER_MAX_SEC);
+          const preset = data.preset && data.preset.exists ? data.preset : null;
+          if (minEl) {
+            if (savedMin != null) minEl.value = savedMin;
+            else if (preset && preset.min_sec != null) minEl.value = preset.min_sec;
+          }
+          if (maxEl) {
+            if (savedMax != null) maxEl.value = savedMax;
+            else if (preset && preset.max_sec != null) maxEl.value = preset.max_sec;
+          }
         }
-        updateAutosendUI();
-      } catch (_) {}
-    }
-
-    function updateAutosendUI() {
-      const btn = document.getElementById('autosendToggle');
-      const status = document.getElementById('autosendStatus');
-      const intervalVal = document.getElementById('autosendIntervalVal');
-      if (!btn || !status) return;
-      if (autosendEnabled) {
-        btn.textContent = 'Off';
-        btn.className = 'autosend-btn-off';
-        status.style.display = 'inline';
-        if (intervalVal) intervalVal.textContent = document.getElementById('autosendInterval').value || '60';
-      } else {
-        btn.textContent = 'On';
-        btn.className = 'autosend-btn-on';
-        status.style.display = 'none';
+        renderAutosenderAccounts();
+        updateAutosendUI(data.messages_count);
+        renderEventPresets();
+      } catch (_) {
+        renderAutosenderAccounts();
       }
     }
 
-    document.getElementById('autosendToggle').addEventListener('click', async function () {
-      const intervalEl = document.getElementById('autosendInterval');
-      let sec = parseInt(intervalEl.value, 10) || 60;
-      if (sec < 10) sec = 10;
-      if (sec > 86400) sec = 86400;
+    function updateAutosendUI(messagesCount) {
+      const startBtn = document.getElementById('autosenderStart');
+      const stopBtn = document.getElementById('autosenderStop');
+      const status = document.getElementById('autosenderStatus');
+      const minEl = document.getElementById('autosenderMinSec');
+      const maxEl = document.getElementById('autosenderMaxSec');
+      if (!startBtn || !stopBtn || !status) return;
+      startBtn.disabled = autosendEnabled;
+      stopBtn.disabled = !autosendEnabled;
+      const minSec = minEl ? minEl.value : '60';
+      const maxSec = maxEl ? maxEl.value : '120';
+      const selectedCount = autosendAccountIds.length || selectedAutosenderAccountIds().length;
+      if (autosendEnabled) {
+        status.innerHTML = 'Running: <span>' + selectedCount + '</span> account(s), delay <span>' + minSec + '-' + maxSec + 's</span>, messages loaded: <span>' + (messagesCount == null ? '?' : messagesCount) + '</span>.';
+      } else {
+        status.innerHTML = 'Not running. Select accounts, set delay range, and keep messages in <span>auto-sender.txt</span>.';
+      }
+    }
+
+    async function setAutosenderEnabled(enabled) {
+      const minEl = document.getElementById('autosenderMinSec');
+      const maxEl = document.getElementById('autosenderMaxSec');
+      let minSec = parseInt(minEl ? minEl.value : '60', 10) || 60;
+      let maxSec = parseInt(maxEl ? maxEl.value : '120', 10) || 120;
+      if (minSec < 1) minSec = 1;
+      if (minSec > 86400) minSec = 86400;
+      if (maxSec < minSec) maxSec = minSec;
+      if (maxSec > 86400) maxSec = 86400;
+      if (minEl) minEl.value = minSec;
+      if (maxEl) maxEl.value = maxSec;
+      writeSavedValue(LS_AUTOSENDER_MIN_SEC, minEl ? minEl.value : minSec);
+      writeSavedValue(LS_AUTOSENDER_MAX_SEC, maxEl ? maxEl.value : maxSec);
+      const accountIds = enabled ? selectedAutosenderAccountIds() : autosendAccountIds;
+      if (enabled && accountIds.length === 0) {
+        showError('Select at least one account');
+        return;
+      }
       try {
         const r = await fetch('/api/autosend', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: !autosendEnabled, interval_sec: sec })
+          body: JSON.stringify({ enabled: enabled, min_sec: minSec, max_sec: maxSec, account_ids: accountIds })
         });
         const text = await r.text();
         if (!r.ok) { showError(text || r.statusText); return; }
-        autosendEnabled = !autosendEnabled;
+        autosendEnabled = enabled;
+        autosendAccountIds = enabled ? accountIds : [];
+        if (!enabled) activeEventPreset = '';
         updateAutosendUI();
-        showError(autosendEnabled ? 'Auto-send on (every ' + sec + 's)' : 'Auto-send off');
+        renderEventPresets();
+        showError(enabled ? 'Auto sender started' : 'Auto sender stopped');
       } catch (e) { showError(e.message); }
+    }
+
+    async function saveAutosenderPreset() {
+      const minEl = document.getElementById('autosenderMinSec');
+      const maxEl = document.getElementById('autosenderMaxSec');
+      let minSec = parseInt(minEl ? minEl.value : '60', 10) || 60;
+      let maxSec = parseInt(maxEl ? maxEl.value : '120', 10) || 120;
+      if (minSec < 1) minSec = 1;
+      if (minSec > 86400) minSec = 86400;
+      if (maxSec < minSec) maxSec = minSec;
+      if (maxSec > 86400) maxSec = 86400;
+      if (minEl) minEl.value = minSec;
+      if (maxEl) maxEl.value = maxSec;
+      writeSavedValue(LS_AUTOSENDER_MIN_SEC, minSec);
+      writeSavedValue(LS_AUTOSENDER_MAX_SEC, maxSec);
+      try {
+        const r = await fetch('/api/autosend/preset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ min_sec: minSec, max_sec: maxSec })
+        });
+        const text = await r.text();
+        if (!r.ok) { showError(text || r.statusText); return; }
+        let data = {};
+        try { data = text ? JSON.parse(text) : {}; } catch (_) {}
+        showError('Preset saved: ' + minSec + '-' + maxSec + 's' + (data.file ? ' (' + data.file + ')' : ''));
+      } catch (e) { showError(e.message); }
+    }
+
+    const autosenderStart = document.getElementById('autosenderStart');
+    const autosenderStop = document.getElementById('autosenderStop');
+    const autosenderSavePreset = document.getElementById('autosenderSavePreset');
+    if (autosenderStart) autosenderStart.addEventListener('click', function () { setAutosenderEnabled(true); });
+    if (autosenderStop) autosenderStop.addEventListener('click', function () { setAutosenderEnabled(false); });
+    if (autosenderSavePreset) autosenderSavePreset.addEventListener('click', saveAutosenderPreset);
+    const eventPresetNew = document.getElementById('eventPresetNew');
+    const eventPresetSave = document.getElementById('eventPresetSave');
+    const eventPresetSaveStart = document.getElementById('eventPresetSaveStart');
+    const eventQuickStop = document.getElementById('eventQuickStop');
+    if (eventPresetNew) eventPresetNew.addEventListener('click', clearEventPresetEditor);
+    if (eventPresetSave) eventPresetSave.addEventListener('click', function () { saveEventPreset(false); });
+    if (eventPresetSaveStart) eventPresetSaveStart.addEventListener('click', function () { saveEventPreset(true); });
+    if (eventQuickStop) eventQuickStop.addEventListener('click', function () { setAutosenderEnabled(false); });
+    ['autosenderMinSec', 'autosenderMaxSec'].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const key = id === 'autosenderMinSec' ? LS_AUTOSENDER_MIN_SEC : LS_AUTOSENDER_MAX_SEC;
+      const saved = readSavedValue(key);
+      if (saved != null) el.value = saved;
+      el.addEventListener('input', function () {
+        writeSavedValue(key, el.value);
+        updateAutosendUI();
+      });
     });
 
     function selectRow() {
@@ -1501,11 +2480,52 @@
       messageInput.focus();
     });
 
+    if (channelForm && channelInput) {
+      channelForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const slug = channelInput.value.trim();
+        if (!slug) {
+          showError('Enter channel slug');
+          return;
+        }
+        if (channelSave) channelSave.disabled = true;
+        try {
+          const r = await fetch('/api/channel', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel_slug: slug })
+          });
+          const text = await r.text();
+          if (!r.ok) {
+            showError(text || r.statusText);
+            return;
+          }
+          let data = {};
+          try { data = text ? JSON.parse(text) : {}; } catch (_) {}
+          channelSlug = data.slug || slug;
+          updateChannelUI();
+          await reloadCustomChat();
+          await loadStreamStatus();
+          showError('Channel saved');
+        } catch (err) {
+          showError((err && err.message) || 'Channel save failed');
+        } finally {
+          if (channelSave) channelSave.disabled = false;
+        }
+      });
+    }
+
     messageInput.addEventListener('input', () => {
       const n = messageInput.value.length;
       charCount.textContent = n > 0 ? n + '/500' : '';
       charCount.classList.toggle('warn', n > 450);
     });
+    if (replyClear && replyInput) {
+      replyClear.addEventListener('click', () => {
+        clearSelectedReply();
+        messageInput.focus();
+      });
+    }
 
     function escapeHtml(s) {
       const div = document.createElement('div');
@@ -1513,13 +2533,293 @@
       return div.innerHTML;
     }
 
+    let kickEmojiByName = {};
+    let kickEmojiByText = {};
+    let allKnownChatEmotes = [];
+    let kickEmojiPattern = /\b\B/;
+
+    function escapeRegExp(s) {
+      return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function normalizeKickEmote(emoji) {
+      const id = String((emoji && emoji.id) || '').replace(/\D/g, '');
+      const name = String((emoji && emoji.name) || '').trim();
+      if (!name) return null;
+      const text = String((emoji && emoji.text) || (id ? '[emote:' + id + ':' + name + ']' : ':' + name + ':')).trim();
+      const image = String((emoji && emoji.image) || (id ? 'https://files.kick.com/emotes/' + id + '/fullsize' : '/emotes/' + name + '.gif')).trim();
+      return { id: id, name: name, text: text, image: image };
+    }
+
+    function rebuildChatEmoteIndex() {
+      kickEmojiByName = {};
+      kickEmojiByText = {};
+      allKnownChatEmotes = kickEmojiShortcodes.concat(legacyKickEmojiShortcodes).map(normalizeKickEmote).filter(Boolean);
+      allKnownChatEmotes.forEach(function (emoji) {
+        kickEmojiByName[emoji.name] = emoji;
+        kickEmojiByText[emoji.text] = emoji;
+      });
+      const knownEmojiPatternParts = allKnownChatEmotes.map(function (emoji) {
+        return ':?' + escapeRegExp(emoji.name) + ':?|' + escapeRegExp(emoji.text);
+      });
+      kickEmojiPattern = new RegExp('\\[emote:(\\d+):([^\\]]+)\\]' + (knownEmojiPatternParts.length ? '|' + knownEmojiPatternParts.join('|') : ''), 'g');
+    }
+
+    rebuildChatEmoteIndex();
+
+    function emojiForNativeEmote(id, name) {
+      const cleanID = String(id || '').replace(/\D/g, '');
+      if (!cleanID) return null;
+      return {
+        id: cleanID,
+        name: String(name || 'emote'),
+        text: '[emote:' + cleanID + ':' + String(name || 'emote') + ']',
+        image: 'https://files.kick.com/emotes/' + cleanID + '/fullsize'
+      };
+    }
+
+    function emojiForChatToken(token) {
+      const raw = String(token || '');
+      const name = raw[0] === ':' && raw[raw.length - 1] === ':' ? raw.slice(1, -1) : raw;
+      return kickEmojiByName[name] || kickEmojiByText[raw] || null;
+    }
+
+    function setChatStatus(text, state) {
+      if (!chatStatus) return;
+      chatStatus.textContent = text || '';
+      chatStatus.classList.toggle('connected', state === 'connected');
+      chatStatus.classList.toggle('error', state === 'error');
+    }
+
+    function showChatEmpty() {
+      if (!chatMessages || chatMessages.querySelector('.chat-message')) return;
+      if (!chatMessages.querySelector('.chat-empty')) {
+        const empty = document.createElement('div');
+        empty.className = 'chat-empty';
+        empty.textContent = 'No messages yet';
+        chatMessages.appendChild(empty);
+      }
+    }
+
+    function clearChatList() {
+      if (!chatMessages) return;
+      chatMessages.innerHTML = '';
+      renderedChatMessages.clear();
+    }
+
+    function formatChatTime(value) {
+      if (!value) return '';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return '';
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function safeChatColor(value) {
+      const color = String(value || '').trim();
+      return /^#[0-9a-f]{3,8}$/i.test(color) ? color : '';
+    }
+
+    function appendContentWithEmotes(target, content) {
+      const text = String(content || '');
+      let lastIndex = 0;
+      kickEmojiPattern.lastIndex = 0;
+      let match;
+      while ((match = kickEmojiPattern.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+          target.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+        const emoji = match[1] ? emojiForNativeEmote(match[1], match[2]) : emojiForChatToken(match[0]);
+        if (emoji) {
+          const img = document.createElement('img');
+          img.className = 'chat-emote';
+          img.src = emoji.image;
+          img.alt = emoji.text;
+          img.title = emoji.name;
+          target.appendChild(img);
+        } else {
+          target.appendChild(document.createTextNode(match[0]));
+        }
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < text.length) {
+        target.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+    }
+
+    function updateReplyPreview() {
+      if (!replyWrap || !replyPreview || !replyInput) return;
+      replyPreview.innerHTML = '';
+      if (!selectedReply || !selectedReply.id) {
+        replyWrap.style.display = 'none';
+        replyInput.value = '';
+        return;
+      }
+      replyInput.value = selectedReply.id;
+      const user = document.createElement('span');
+      user.className = 'reply-preview-user';
+      user.textContent = selectedReply.username || 'chat';
+      const text = document.createElement('span');
+      text.className = 'reply-preview-text';
+      text.textContent = selectedReply.content || selectedReply.id;
+      replyPreview.appendChild(user);
+      replyPreview.appendChild(text);
+      replyWrap.style.display = 'flex';
+    }
+
+    function clearSelectedReply() {
+      selectedReply = null;
+      updateReplyPreview();
+    }
+
+    function selectReplyMessage(msg) {
+      if (!msg || !msg.id) {
+        showError('This message has no reply id yet');
+        return;
+      }
+      selectedReply = {
+        id: String(msg.id),
+        username: msg.username || 'chat',
+        content: msg.content || ''
+      };
+      updateReplyPreview();
+      messageInput.focus();
+    }
+
+    function appendChatMessage(msg) {
+      if (!chatMessages || !msg) return;
+      const key = String(msg.id || ('seq-' + (msg.seq || Date.now() + '-' + Math.random())));
+      if (renderedChatMessages.has(key)) return;
+      renderedChatMessages.add(key);
+
+      const empty = chatMessages.querySelector('.chat-empty');
+      if (empty) empty.remove();
+      const nearBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 90;
+
+      const row = document.createElement('div');
+      row.className = 'chat-message';
+      row.dataset.messageKey = key;
+
+      if (msg.reply_to && (msg.reply_to.content || msg.reply_to.username)) {
+        const quoted = document.createElement('div');
+        quoted.className = 'chat-replied';
+        const strong = document.createElement('strong');
+        strong.textContent = msg.reply_to.username || 'chat';
+        const replyText = document.createElement('span');
+        replyText.className = 'chat-replied-text';
+        replyText.textContent = msg.reply_to.content || msg.reply_to.id || '';
+        quoted.appendChild(strong);
+        quoted.appendChild(document.createTextNode(' '));
+        quoted.appendChild(replyText);
+        row.appendChild(quoted);
+      }
+
+      const line = document.createElement('div');
+      line.className = 'chat-line';
+      const sentAt = formatChatTime(msg.created_at);
+      if (sentAt) row.title = sentAt;
+
+      const user = document.createElement('span');
+      user.className = 'chat-user';
+      user.textContent = msg.username || 'chat';
+      const color = safeChatColor(msg.color);
+      if (color) user.style.color = color;
+
+      const colon = document.createElement('span');
+      colon.className = 'chat-colon';
+      colon.textContent = ':';
+
+      const content = document.createElement('span');
+      content.className = 'chat-content';
+      appendContentWithEmotes(content, msg.content || '');
+
+      const replyBtn = document.createElement('button');
+      replyBtn.type = 'button';
+      replyBtn.className = 'chat-reply-btn';
+      replyBtn.title = 'Reply';
+      replyBtn.setAttribute('aria-label', 'Reply');
+      replyBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>';
+      replyBtn.addEventListener('click', function () { selectReplyMessage(msg); });
+
+      line.appendChild(user);
+      line.appendChild(colon);
+      line.appendChild(content);
+      line.appendChild(replyBtn);
+      row.appendChild(line);
+
+      chatMessages.appendChild(row);
+      while (chatMessages.querySelectorAll('.chat-message').length > 260) {
+        const first = chatMessages.querySelector('.chat-message');
+        if (!first) break;
+        if (first.dataset.messageKey) renderedChatMessages.delete(first.dataset.messageKey);
+        first.remove();
+      }
+      if (nearBottom) chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function loadChatHistory() {
+      if (!chatMessages) return;
+      try {
+        const data = await fetchJSON('/api/chat/history');
+        clearChatList();
+        const status = (data && data.status) || '';
+        setChatStatus(status === 'connected' ? 'Connected' : status || 'Connecting...', status === 'connected' ? 'connected' : '');
+        const messages = data && Array.isArray(data.messages) ? data.messages : [];
+        messages.forEach(appendChatMessage);
+        showChatEmpty();
+      } catch (_) {
+        setChatStatus('Chat unavailable', 'error');
+        showChatEmpty();
+      }
+    }
+
+    function disconnectCustomChat() {
+      if (chatEventSource) {
+        chatEventSource.close();
+        chatEventSource = null;
+      }
+    }
+
+    async function reloadCustomChat() {
+      disconnectCustomChat();
+      clearChatList();
+      setChatStatus(channelSlug ? 'Connecting...' : 'Channel not set', channelSlug ? '' : 'error');
+      await loadChatHistory();
+      connectCustomChat();
+    }
+
+    function connectCustomChat() {
+      if (!chatMessages || chatEventSource || !window.EventSource || !channelSlug) return;
+      chatEventSource = new EventSource('/api/chat/events');
+      chatEventSource.onopen = function () {
+        setChatStatus('Connecting...', '');
+      };
+      chatEventSource.addEventListener('status', function (event) {
+        try {
+          const data = JSON.parse(event.data || '{}');
+          const status = data.status || '';
+          setChatStatus(status === 'connected' ? 'Connected' : status || 'Connecting...', status === 'connected' ? 'connected' : '');
+        } catch (_) {}
+      });
+      chatEventSource.onmessage = function (event) {
+        try {
+          appendChatMessage(JSON.parse(event.data));
+        } catch (_) {}
+      };
+      chatEventSource.onerror = function () {
+        setChatStatus('Chat reconnecting...', 'error');
+      };
+    }
+
     async function sendMessage(optionalText) {
       const accountId = accountSelect.value;
       const msg = optionalText !== undefined ? String(optionalText) : messageInput.value.trim();
+      const replyTo = replyInput ? replyInput.value.trim() : '';
       if (!accountId || !msg) {
         showError('Select an account and enter a message.');
         return;
       }
+      const payload = { account_id: parseInt(accountId, 10), message: msg };
+      if (replyTo) payload.reply_to_message_id = replyTo;
       sendBtn.disabled = true;
       sendBtnText.style.display = 'none';
       sendBtnSpinner.style.display = 'block';
@@ -1527,7 +2827,7 @@
         const r = await fetch('/api/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_id: parseInt(accountId, 10), message: msg })
+          body: JSON.stringify(payload)
         });
         const text = await r.text();
         if (!r.ok) {
@@ -1538,6 +2838,7 @@
           messageInput.value = '';
           charCount.textContent = '';
         }
+        if (replyTo) clearSelectedReply();
       } finally {
         sendBtn.disabled = false;
         sendBtnText.style.display = 'block';
@@ -1656,17 +2957,34 @@
     function switchTab(name) {
       document.querySelectorAll('.tab-btn').forEach(b => { b.classList.toggle('active', b.dataset.tab === name); });
       const dash = document.getElementById('tabDashboard');
+      const auto = document.getElementById('tabAutosender');
       const vb = document.getElementById('tabViewerbot');
       if (name === 'dashboard') {
         dash.classList.add('is-active');
         dash.style.display = '';
+        auto.classList.remove('is-active');
+        auto.style.display = 'none';
         vb.classList.remove('is-active');
         vb.style.display = 'none';
         stopViewerbotStatusPoll();
         stopViewerbotLogPoll();
+      } else if (name === 'autosender') {
+        dash.classList.remove('is-active');
+        dash.style.display = 'none';
+        auto.classList.add('is-active');
+        auto.style.display = 'flex';
+        auto.style.width = '100%';
+        vb.classList.remove('is-active');
+        vb.style.display = 'none';
+        stopViewerbotStatusPoll();
+        stopViewerbotLogPoll();
+        renderAutosenderAccounts();
+        loadAutosendStatus();
       } else {
         dash.classList.remove('is-active');
         dash.style.display = 'none';
+        auto.classList.remove('is-active');
+        auto.style.display = 'none';
         vb.classList.add('is-active');
         vb.style.display = 'flex';
         vb.style.width = '100%';
@@ -1714,6 +3032,14 @@
       });
 
       checkOAuthParams();
+      await loadKickEmotes();
+      renderKickEmojiBar();
+      try {
+        await loadChannel();
+      } catch (e) {
+        if (channelBadge) channelBadge.textContent = '?';
+        showError('Channel: ' + ((e && e.message) || 'error'));
+      }
       try {
         await loadAccounts();
         if (accountSelect && accountSelect.value) {
@@ -1725,15 +3051,19 @@
           accountsList.innerHTML = '<div class="toast" style="position:static;margin:12px;">Error: ' + escapeHtml(msg) + (msg.indexOf('license') !== -1 ? '. <a href="/" style="color:var(--accent);">Open / reload</a>' : '') + '</div>';
         }
       }
-      try {
-        await loadChannel();
-      } catch (e) {
-        if (channelBadge) channelBadge.textContent = '?';
-        showError('Channel: ' + ((e && e.message) || 'error'));
+      if (adminFeatures) {
+        await loadEventPresets();
+        await loadAutosendStatus();
       }
+      await loadStreamStatus();
+      await loadChatHistory();
+      connectCustomChat();
       setInterval(loadAccounts, 30000);
       setInterval(async () => { await loadRunners(); refreshRunnerStatesInDOM(); }, 5000);
       setInterval(refreshLastUpdate, 10000);
+      setInterval(renderStreamStatus, 1000);
+      setInterval(loadStreamStatus, 15000);
+      if (adminFeatures) setInterval(loadAutosendStatus, 5000);
     }
     init().catch(function (err) { console.error(err); });
   </script>

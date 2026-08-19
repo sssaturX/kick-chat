@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a defect in SaturX
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Use this form for bugs only. Do not paste secrets, tokens, or real account names.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      placeholder: Short description
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: Windows 11 / macOS / Linux
+  - type: textarea
+    id: extra
+    attributes:
+      label: Logs (redacted)
+      description: Strip tokens, keys, channel names, and account names.

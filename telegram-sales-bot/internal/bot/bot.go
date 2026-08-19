@@ -104,7 +104,7 @@ func (b *Bot) softwareDownloadKeyboard() *tgbotapi.InlineKeyboardMarkup {
 		}
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonURL("📦 "+label, u)))
 	}
-	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonURL("📩 Support", "https://t.me/ssaturx")))
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonURL("📩 Support", "https://t.me/your_support")))
 	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
 	return &kb
 }
@@ -759,7 +759,7 @@ func (b *Bot) handleCallback(ctx context.Context, cq *tgbotapi.CallbackQuery) {
 func (b *Bot) sendSupport(chatID int64) {
 	b.sendHTML(chatID, `📩 <b>Support</b>
 
-Manager: <a href="https://t.me/ssaturx">@ssaturx</a>
+Manager: <a href="https://t.me/your_support">@your_support</a>
 
 Write in Telegram for payment issues, license help, or product questions.`)
 }

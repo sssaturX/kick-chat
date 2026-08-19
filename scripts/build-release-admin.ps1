@@ -1,7 +1,7 @@
-# Build release for Windows: SaturX.exe (icon + version) + viewerbot.exe.
-# Output: release\SaturX\ and release\SaturX-yyyyMMdd-HHmmss.zip
-# Run from repo root: .\scripts\build-release.ps1  OR  .\scripts\build-release.bat
-# If script is blocked: powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
+# Admin release: same as build-release.ps1 (SaturX + viewerbot + zip) but license checks are OFF (embedded).
+# Does not read LICENSE_SERVER_URL / LICENSE_HMAC_SECRET from .env.
+# Output: release\SaturX-Admin\ and release\SaturX-Admin-yyyyMMdd-HHmmss.zip
+# Run from repo root: .\scripts\build-release-admin.ps1
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -10,26 +10,16 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $ROOT = (Get-Item $PSScriptRoot).Parent.FullName
 Set-Location $ROOT
 
-$envFile = if ($env:ENV_FILE) { $env:ENV_FILE } else { ".env" }
-if (-not (Test-Path $envFile)) {
-  Write-Error "Missing $envFile (set LICENSE_SERVER_URL and LICENSE_HMAC_SECRET)"
-  exit 1
+$RELEASE_ROOT = Join-Path $ROOT "release"
+$USER_PACKAGE = Join-Path $RELEASE_ROOT "SaturX-Admin"
+if (Test-Path -LiteralPath $USER_PACKAGE) {
+  $resolvedPackage = (Resolve-Path -LiteralPath $USER_PACKAGE).Path
+  $resolvedRelease = (Resolve-Path -LiteralPath $RELEASE_ROOT).Path
+  if (-not $resolvedPackage.StartsWith($resolvedRelease, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove outside release: $resolvedPackage"
+  }
+  Remove-Item -LiteralPath $resolvedPackage -Recurse -Force
 }
-
-$LICENSE_SERVER_URL = ""
-$LICENSE_HMAC_SECRET = ""
-Get-Content $envFile -Encoding UTF8 | ForEach-Object {
-  $line = $_ -replace "`r", ""
-  if ($line -match '^LICENSE_SERVER_URL=(.+)$') { $LICENSE_SERVER_URL = $Matches[1].Trim() }
-  if ($line -match '^LICENSE_HMAC_SECRET=(.+)$') { $LICENSE_HMAC_SECRET = $Matches[1].Trim() }
-}
-
-if (-not $LICENSE_SERVER_URL -or -not $LICENSE_HMAC_SECRET) {
-  Write-Error "Set LICENSE_SERVER_URL and LICENSE_HMAC_SECRET in $envFile"
-  exit 1
-}
-
-$USER_PACKAGE = Join-Path $ROOT "release\SaturX"
 New-Item -ItemType Directory -Force -Path $USER_PACKAGE | Out-Null
 
 function Get-GoExecutable {
@@ -45,7 +35,6 @@ function Get-GoExecutable {
     $candidates += (Join-Path $env:GOROOT "bin\go.exe")
   }
   if ($env:LOCALAPPDATA) {
-    # Официальный MSI «для текущего пользователя»
     $candidates += (Join-Path $env:LOCALAPPDATA "Programs\Go\bin\go.exe")
   }
   if ($env:USERPROFILE) {
@@ -73,6 +62,7 @@ Go (go.exe) not found. Install from https://go.dev/dl/ (Windows MSI), then eithe
   exit 1
 }
 Write-Host "Using Go: $goExe"
+Write-Host "=== Admin release (no license) ==="
 
 Write-Host "=== 1. Building viewerbot (PyInstaller) ==="
 $vbDir = Join-Path $ROOT "test_view\kick-viewbot"
@@ -99,7 +89,6 @@ $versioninfoJson = Join-Path $ROOT "versioninfo.json"
 if (-not (Test-Path $versioninfoJson)) {
   Write-Host "versioninfo.json not found, skipping icon/version"
 } else {
-  # go run goversioninfo; -64 for 64-bit exe (default would be 386)
   $goversioninfoArgs = @("-64", "-o", $sysoOut, $versioninfoJson)
   if (Test-Path $iconPath) {
     $goversioninfoArgs = @("-64", "-icon", $iconPath, "-o", $sysoOut, $versioninfoJson)
@@ -109,16 +98,16 @@ if (-not (Test-Path $versioninfoJson)) {
   }
   & $goExe run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest @goversioninfoArgs
   if ($LASTEXITCODE -ne 0) {
-    Write-Warning "goversioninfo failed (exit $LASTEXITCODE). Exe will have no custom icon. Check that build\icon.ico is valid .ico (e.g. 256x256 or multi-size)."
+    Write-Warning "goversioninfo failed (exit $LASTEXITCODE). Exe will have no custom icon."
   } elseif (Test-Path $sysoOut) {
     Write-Host "resource.syso created (icon + version info)"
   }
 }
 
 Write-Host ""
-Write-Host "=== 3. Building SaturX (Go) ==="
-$ldflags = "-s -w -X main.defaultLicenseServerURL=$LICENSE_SERVER_URL -X main.defaultLicenseHMACSecret=$LICENSE_HMAC_SECRET"
-$exeName = "SaturX.exe"
+Write-Host "=== 3. Building SaturX-Admin (Go, admin release ldflags) ==="
+$ldflags = "-s -w -X main.defaultAdminRelease=1 -X main.defaultLicenseServerURL= -X main.defaultLicenseHMACSecret="
+$exeName = "SaturX-Admin.exe"
 & $goExe build -tags release -ldflags $ldflags -o (Join-Path $USER_PACKAGE $exeName) .
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host "Output: $USER_PACKAGE\$exeName"
@@ -138,9 +127,11 @@ if (Test-Path $vbDistExe) {
 
 foreach ($pair in @(
   @{ Src = ".env.example"; Dest = ".env.example" }
+  @{ Src = "kick-emotes.json"; Dest = "kick-emotes.json" }
   @{ Src = "USER-GUIDE.md"; Dest = "USER-GUIDE.md" }
   @{ Src = "release\README.txt"; Dest = "README.txt" }
   @{ Src = "release\README-USER.md"; Dest = "README.md" }
+  @{ Src = "release\README-ADMIN.txt"; Dest = "README-ADMIN.txt" }
 )) {
   $src = Join-Path $ROOT $pair.Src
   if (Test-Path $src) {
@@ -150,8 +141,8 @@ foreach ($pair in @(
 }
 
 Write-Host ""
-Write-Host "=== 4. ZIP (server / distribution) ==="
-$zipName = "SaturX-$(Get-Date -Format 'yyyyMMdd-HHmmss').zip"
+Write-Host "=== 4. ZIP ==="
+$zipName = "SaturX-Admin-$(Get-Date -Format 'yyyyMMdd-HHmmss').zip"
 $zipPath = Join-Path (Join-Path $ROOT "release") $zipName
 try {
   if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
@@ -162,7 +153,6 @@ try {
 }
 
 Write-Host ""
-Write-Host "Done. Folder for user: $USER_PACKAGE"
+Write-Host "Done. Admin folder: $USER_PACKAGE"
 Get-ChildItem $USER_PACKAGE
-# Use single-quoted tail: parentheses after .env break parsing in double-quoted strings
-Write-Host ('For server: upload ' + $zipName + ' or folder release\SaturX. User needs .env with KICK_CLIENT_ID, KICK_CLIENT_SECRET, CHANNEL_SLUG')
+Write-Host ('Do not ship SaturX-Admin to customers. Kick: .env with KICK_CLIENT_ID, KICK_CLIENT_SECRET, CHANNEL_SLUG')

@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -39,6 +40,16 @@ type licenseGate struct {
 	valid bool
 }
 
+type streamStatus struct {
+	Slug          string    `json:"slug"`
+	IsLive        bool      `json:"is_live"`
+	StartTime     string    `json:"start_time,omitempty"`
+	ViewerCount   int       `json:"viewer_count"`
+	Title         string    `json:"title,omitempty"`
+	UptimeSeconds int64     `json:"uptime_seconds"`
+	CheckedAt     time.Time `json:"checked_at"`
+}
+
 func (g *licenseGate) Valid() bool {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
@@ -55,40 +66,104 @@ type webServer struct {
 	ctx               context.Context
 	store             *accountsStore
 	channelSlug       string
+	channelMu         sync.RWMutex
 	broadcasterID     int
 	broadcasterMu     sync.Mutex
+	chatHub           *chatHub
+	chatCancel        context.CancelFunc
 	manager           *runner.AccountManager
 	viewerBot         *viewerbot.Bot
+	onChannelChanged  func(string)
 	onShutdown        func()
 	oauthClient       kickcontracts.OAuthClient
 	clientID          string
-	clientSecret       string
-	oauthRedirectURI   string // Initiate + exchange — must match Redirect URL in Kick app
-	dashboardBaseURL   string // e.g. http://localhost:8080 — redirects after OAuth land here
-	licenseGate        *licenseGate
+	clientSecret      string
+	oauthRedirectURI  string // Initiate + exchange — must match Redirect URL in Kick app
+	dashboardBaseURL  string // e.g. http://localhost:8080 — redirects after OAuth land here
+	licenseGate       *licenseGate
 	licenseStore      *licensestore.Store
 	licenseServerURL  string
 	licenseHMACSecret string
 	deviceFingerprint string
+	// skipLicense: SKIP_LICENSE=1 — локальный тест без license-server и ключа
+	skipLicense bool
+	// adminRelease: scripts/build-release-admin.* — без лицензии, можно слать одинаковые сообщения подряд
+	adminRelease bool
 
-	// autosend: по таймеру отправляет заготовленные сообщения из messages.txt выбранным аккаунтом
+	// autosend: sends prepared messages from auto-sender.txt by selected accounts.
 	autosendMu          sync.Mutex
 	autosendEnabled     bool
-	autosendIntervalSec int
+	autosendMinSec      int
+	autosendMaxSec      int
+	autosendAccountIDs  []int
 	autosendNextIndex   int
+	autosendShuffleDeck []string // admin: random order without repeats until file cycle ends
+	autosendMessages    []string // non-empty for an active admin event preset
+	autosendPresetName  string
 	autosendStopCh      chan struct{}
+
+	streamStatusMu       sync.Mutex
+	streamStatusCached   streamStatus
+	streamStatusCachedAt time.Time
+}
+
+func (srv *webServer) currentChannelSlug() string {
+	srv.channelMu.RLock()
+	defer srv.channelMu.RUnlock()
+	return srv.channelSlug
+}
+
+func (srv *webServer) currentChatHub() *chatHub {
+	srv.channelMu.RLock()
+	defer srv.channelMu.RUnlock()
+	return srv.chatHub
+}
+
+func (srv *webServer) switchChannel(slug string) {
+	srv.channelMu.Lock()
+	if srv.chatCancel != nil {
+		srv.chatCancel()
+		srv.chatCancel = nil
+	}
+	srv.channelSlug = slug
+	srv.chatHub = nil
+	if slug != "" {
+		chatCtx, cancel := context.WithCancel(srv.ctx)
+		hub := newChatHub(chatCtx, slug)
+		srv.chatHub = hub
+		srv.chatCancel = cancel
+		go hub.run()
+	}
+	srv.channelMu.Unlock()
+
+	srv.broadcasterMu.Lock()
+	srv.broadcasterID = 0
+	srv.broadcasterMu.Unlock()
+
+	srv.streamStatusMu.Lock()
+	srv.streamStatusCached = streamStatus{}
+	srv.streamStatusCachedAt = time.Time{}
+	srv.streamStatusMu.Unlock()
+
+	if srv.onChannelChanged != nil {
+		srv.onChannelChanged(slug)
+	}
 }
 
 func (w *webServer) resolveBroadcasterID(token, proxy string) int {
+	slug := w.currentChannelSlug()
+	if slug == "" {
+		return 0
+	}
 	client := apiClientWithProxy(proxy)
 	api, err := kick.NewAPIClient(kickapitypes.APIClientConfig{HTTPClient: client})
 	if err != nil {
 		return 0
 	}
-	channels, err := api.Channel().GetChannelsByBroadcasterSlug(w.ctx, token, []string{w.channelSlug})
+	channels, err := api.Channel().GetChannelsByBroadcasterSlug(w.ctx, token, []string{slug})
 	if err != nil && proxy != "" && isNetworkOrProxyError(err) {
 		api, _ = kick.NewAPIClient(kickapitypes.APIClientConfig{HTTPClient: http.DefaultClient})
-		channels, err = api.Channel().GetChannelsByBroadcasterSlug(w.ctx, token, []string{w.channelSlug})
+		channels, err = api.Channel().GetChannelsByBroadcasterSlug(w.ctx, token, []string{slug})
 	}
 	if err != nil || len(channels.Data) == 0 {
 		return 0
@@ -121,23 +196,49 @@ func (srv *webServer) handleAPIAccounts(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	type acc struct {
-		ID      int    `json:"id"`
-		Name    string `json:"name"` // custom label; empty = show "Account N" in UI
-		Current bool   `json:"current"`
-		Proxy   string `json:"proxy"`
+		ID       int    `json:"id"`
+		StableID int    `json:"stable_id"`
+		Name     string `json:"name"` // custom label; empty = show "Account N" in UI
+		Current  bool   `json:"current"`
+		Proxy    string `json:"proxy"`
 	}
 	var list []acc
 	for _, a := range srv.store.List() {
 		_, _, proxy, _, _ := srv.store.GetAccountByIndex(a.Num)
 		list = append(list, acc{
-			ID:      a.Num,
-			Name:    srv.store.NameAt(a.Num),
-			Current: a.Current,
-			Proxy:   proxy,
+			ID:       a.Num,
+			StableID: a.StableID,
+			Name:     srv.store.NameAt(a.Num),
+			Current:  a.Current,
+			Proxy:    proxy,
 		})
 	}
 	rw.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(rw).Encode(list)
+}
+
+func (srv *webServer) handleAPIAccountsOrder(rw http.ResponseWriter, r *http.Request) {
+	if !srv.adminRelease {
+		http.Error(rw, "admin release only", http.StatusForbidden)
+		return
+	}
+	if r.Method != http.MethodPut {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Order []int `json:"order"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(rw, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if err := srv.store.SetDisplayOrder(body.Order); err != nil {
+		http.Error(rw, "order must contain every account exactly once", http.StatusBadRequest)
+		return
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(rw).Encode(map[string]bool{"ok": true})
 }
 
 func (srv *webServer) handleAPIStatus(rw http.ResponseWriter, r *http.Request) {
@@ -149,13 +250,14 @@ func (srv *webServer) handleAPIStatus(rw http.ResponseWriter, r *http.Request) {
 		ID     int  `json:"id"`
 		Online bool `json:"online"`
 	}
+	states := srv.manager.RunnerStates()
 	var list []st
 	for i := 1; i <= srv.store.Count(); i++ {
-		tok, _, proxy, _, ok := srv.store.GetAccountByIndex(i)
-		if !ok {
-			continue
+		state := runner.StateOnline
+		if current, ok := states[i]; ok && strings.TrimSpace(current.State) != "" {
+			state = current.State
 		}
-		list = append(list, st{ID: i, Online: srv.resolveBroadcasterID(tok, proxy) != 0})
+		list = append(list, st{ID: i, Online: state != runner.StateInvalid && state != runner.StateError})
 	}
 	rw.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(rw).Encode(list)
@@ -167,8 +269,9 @@ func (srv *webServer) handleAPISend(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		AccountID int    `json:"account_id"`
-		Message   string `json:"message"`
+		AccountID        int    `json:"account_id"`
+		Message          string `json:"message"`
+		ReplyToMessageID string `json:"reply_to_message_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(rw, "invalid json", http.StatusBadRequest)
@@ -178,7 +281,8 @@ func (srv *webServer) handleAPISend(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "account_id required", http.StatusBadRequest)
 		return
 	}
-	ok, reason := srv.manager.Send(body.AccountID, body.Message)
+	task := srv.sendTaskForMessage(body.Message, body.ReplyToMessageID)
+	ok, reason := srv.manager.SendTask(body.AccountID, task)
 	if !ok {
 		http.Error(rw, reason, http.StatusBadRequest)
 		return
@@ -187,11 +291,123 @@ func (srv *webServer) handleAPISend(rw http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(rw).Encode(map[string]string{"status": "ok"})
 }
 
-const messagesFileName = "messages.txt"
+func (srv *webServer) handleAPIChatHistory(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	hub := srv.currentChatHub()
+	if hub == nil {
+		rw.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(rw).Encode(map[string]interface{}{
+			"status":   "disabled",
+			"messages": []chatMessage{},
+		})
+		return
+	}
+	messages, status := hub.snapshot()
+	rw.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(rw).Encode(map[string]interface{}{
+		"status":   status,
+		"messages": messages,
+	})
+}
 
-// readMessagesFile возвращает строки из messages.txt (по одной строке — одно сообщение), без пустых.
-func readMessagesFile() []string {
-	data, err := os.ReadFile(messagesFileName)
+func writeSSEJSON(rw http.ResponseWriter, event string, payload interface{}) bool {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return false
+	}
+	if event != "" {
+		if _, err := fmt.Fprintf(rw, "event: %s\n", event); err != nil {
+			return false
+		}
+	}
+	_, err = fmt.Fprintf(rw, "data: %s\n\n", data)
+	return err == nil
+}
+
+func (srv *webServer) handleAPIChatEvents(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	hub := srv.currentChatHub()
+	if hub == nil {
+		http.Error(rw, "chat disabled", http.StatusServiceUnavailable)
+		return
+	}
+	flusher, ok := rw.(http.Flusher)
+	if !ok {
+		http.Error(rw, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	rw.Header().Set("Content-Type", "text/event-stream")
+	rw.Header().Set("Cache-Control", "no-store")
+	rw.Header().Set("Connection", "keep-alive")
+	rw.Header().Set("X-Accel-Buffering", "no")
+
+	ch := hub.register()
+	defer hub.unregister(ch)
+
+	_, status := hub.snapshot()
+	lastStatus := status
+	if writeSSEJSON(rw, "status", map[string]string{"status": status}) {
+		flusher.Flush()
+	}
+
+	ticker := time.NewTicker(25 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case data := <-ch:
+			if _, err := fmt.Fprintf(rw, "data: %s\n\n", data); err != nil {
+				return
+			}
+			flusher.Flush()
+		case <-ticker.C:
+			_, status := hub.snapshot()
+			if status != lastStatus {
+				lastStatus = status
+				if !writeSSEJSON(rw, "status", map[string]string{"status": status}) {
+					return
+				}
+			} else if _, err := fmt.Fprint(rw, ": keepalive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+		case <-r.Context().Done():
+			return
+		case <-hub.ctx.Done():
+			return
+		case <-srv.ctx.Done():
+			return
+		}
+	}
+}
+
+const (
+	messagesFileName          = "messages.txt"
+	autoSenderFileName        = "auto-sender.txt"
+	autoSenderPresetsFileName = "auto-sender-presets.json"
+)
+
+type autoSenderPreset struct {
+	Name             string    `json:"name"`
+	Messages         []string  `json:"messages,omitempty"`
+	AccountStableIDs []int     `json:"account_stable_ids,omitempty"`
+	MinSec           int       `json:"min_sec"`
+	MaxSec           int       `json:"max_sec"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type autoSenderPresetsFile struct {
+	Active  string             `json:"active"`
+	Presets []autoSenderPreset `json:"presets"`
+}
+
+func readNonEmptyLinesFile(path string) []string {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
@@ -206,6 +422,82 @@ func readMessagesFile() []string {
 	return out
 }
 
+// readMessagesFile returns lines from messages.txt, one non-empty line per preset.
+func readMessagesFile() []string {
+	return readNonEmptyLinesFile(messagesFileName)
+}
+
+func readAutoSenderMessages() []string {
+	return readNonEmptyLinesFile(autoSenderFileName)
+}
+
+func normalizePresetMessages(messages []string) ([]string, error) {
+	seen := make(map[string]bool, len(messages))
+	out := make([]string, 0, len(messages))
+	for _, message := range messages {
+		message = strings.TrimSpace(message)
+		if message == "" || seen[message] {
+			continue
+		}
+		if len(message) > 500 {
+			return nil, fmt.Errorf("preset message is longer than 500 characters")
+		}
+		seen[message] = true
+		out = append(out, message)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("add at least one message")
+	}
+	return out, nil
+}
+
+func normalizePresetName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("preset name required")
+	}
+	if len(name) > 64 {
+		return "", fmt.Errorf("preset name is too long")
+	}
+	return name, nil
+}
+
+func readAutoSenderPresetsFile() (autoSenderPresetsFile, error) {
+	data, err := os.ReadFile(autoSenderPresetsFileName)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return autoSenderPresetsFile{}, nil
+		}
+		return autoSenderPresetsFile{}, err
+	}
+	var file autoSenderPresetsFile
+	if err := json.Unmarshal(data, &file); err != nil {
+		return autoSenderPresetsFile{}, err
+	}
+	for i := range file.Presets {
+		file.Presets[i].MinSec, file.Presets[i].MaxSec = sanitizeAutosendRange(file.Presets[i].MinSec, file.Presets[i].MaxSec)
+	}
+	return file, nil
+}
+
+func writeAutoSenderPresetsFile(file autoSenderPresetsFile) error {
+	data, err := json.MarshalIndent(file, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	return os.WriteFile(autoSenderPresetsFileName, data, 0644)
+}
+
+func findAutoSenderPreset(file autoSenderPresetsFile, name string) (autoSenderPreset, int, bool) {
+	for i, preset := range file.Presets {
+		if strings.EqualFold(strings.TrimSpace(preset.Name), strings.TrimSpace(name)) {
+			return preset, i, true
+		}
+	}
+	return autoSenderPreset{}, -1, false
+}
+
 func (srv *webServer) handleAPIMessages(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
@@ -216,16 +508,290 @@ func (srv *webServer) handleAPIMessages(rw http.ResponseWriter, r *http.Request)
 	_ = json.NewEncoder(rw).Encode(map[string]interface{}{"messages": messages})
 }
 
+func (srv *webServer) handleAPIEmotes(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(rw).Encode(map[string]interface{}{"emotes": kickEmojiDefinitions()})
+}
+
+func sanitizeAutosendRange(minSec, maxSec int) (int, int) {
+	if minSec <= 0 {
+		minSec = 60
+	}
+	if minSec < 1 {
+		minSec = 1
+	}
+	if minSec > 86400 {
+		minSec = 86400
+	}
+	if maxSec <= 0 {
+		maxSec = minSec
+	}
+	if maxSec < minSec {
+		maxSec = minSec
+	}
+	if maxSec > 86400 {
+		maxSec = 86400
+	}
+	return minSec, maxSec
+}
+
+func readAutoSenderPreset() (autoSenderPreset, bool) {
+	file, err := readAutoSenderPresetsFile()
+	if err != nil {
+		return autoSenderPreset{}, false
+	}
+	active := strings.TrimSpace(file.Active)
+	if active == "" {
+		active = "default"
+	}
+	if preset, _, ok := findAutoSenderPreset(file, active); ok {
+		return preset, true
+	}
+	return autoSenderPreset{}, false
+}
+
+func writeAutoSenderPreset(minSec, maxSec int) error {
+	minSec, maxSec = sanitizeAutosendRange(minSec, maxSec)
+	file, err := readAutoSenderPresetsFile()
+	if err != nil {
+		return err
+	}
+	preset, i, ok := findAutoSenderPreset(file, "default")
+	if !ok {
+		preset.Name = "default"
+		file.Presets = append(file.Presets, preset)
+		i = len(file.Presets) - 1
+	}
+	preset.MinSec = minSec
+	preset.MaxSec = maxSec
+	preset.UpdatedAt = time.Now().UTC()
+	file.Presets[i] = preset
+	file.Active = "default"
+	return writeAutoSenderPresetsFile(file)
+}
+
+func copyIntSlice(in []int) []int {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]int, len(in))
+	copy(out, in)
+	return out
+}
+
+func shuffleStrings(in []string) []string {
+	out := make([]string, len(in))
+	copy(out, in)
+	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+	return out
+}
+
+func popShuffledMessage(deck *[]string, messages []string) (string, bool) {
+	if len(messages) == 0 {
+		*deck = nil
+		return "", false
+	}
+	if len(*deck) == 0 {
+		*deck = shuffleStrings(messages)
+	}
+	n := len(*deck)
+	msg := (*deck)[n-1]
+	*deck = (*deck)[:n-1]
+	return msg, true
+}
+
+func (srv *webServer) nextAutosendMessage() (string, bool) {
+	fileMessages := readAutoSenderMessages()
+	srv.autosendMu.Lock()
+	defer srv.autosendMu.Unlock()
+	messages := fileMessages
+	if len(srv.autosendMessages) > 0 {
+		messages = srv.autosendMessages
+	}
+	if len(messages) == 0 {
+		return "", false
+	}
+	if srv.adminRelease {
+		return popShuffledMessage(&srv.autosendShuffleDeck, messages)
+	}
+	idx := srv.autosendNextIndex
+	srv.autosendNextIndex = idx + 1
+	return messages[idx%len(messages)], true
+}
+
+func autosendDelay(minSec, maxSec int) time.Duration {
+	if maxSec <= minSec {
+		return time.Duration(minSec) * time.Second
+	}
+	return time.Duration(minSec+rand.Intn(maxSec-minSec+1)) * time.Second
+}
+
+func waitAutosendDelay(ctx context.Context, stopCh <-chan struct{}, minSec, maxSec int) bool {
+	timer := time.NewTimer(autosendDelay(minSec, maxSec))
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-stopCh:
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func (srv *webServer) runAutosendSequence(stopCh <-chan struct{}, accountIDs []int, minSec, maxSec int) {
+	if len(accountIDs) == 0 {
+		return
+	}
+	nextAccount := 0
+	for {
+		select {
+		case <-srv.ctx.Done():
+			return
+		case <-stopCh:
+			return
+		default:
+		}
+
+		msg, ok := srv.nextAutosendMessage()
+		if !ok {
+			if !waitAutosendDelay(srv.ctx, stopCh, minSec, maxSec) {
+				return
+			}
+			continue
+		}
+		select {
+		case <-stopCh:
+			return
+		default:
+		}
+		accountID := accountIDs[nextAccount]
+		nextAccount = (nextAccount + 1) % len(accountIDs)
+		if ok, reason := srv.manager.SendTask(accountID, srv.sendTaskForMessage(msg, "")); !ok {
+			log.Printf("[autosend] account_id=%d skipped: %s", accountID, reason)
+		}
+		if !waitAutosendDelay(srv.ctx, stopCh, minSec, maxSec) {
+			return
+		}
+	}
+}
+
+func (srv *webServer) validAccountPositions(accountIDs []int) []int {
+	seen := make(map[int]bool, len(accountIDs))
+	valid := make([]int, 0, len(accountIDs))
+	for _, id := range accountIDs {
+		if id < 1 || seen[id] {
+			continue
+		}
+		if _, _, _, _, ok := srv.store.GetAccountByIndex(id); !ok {
+			continue
+		}
+		seen[id] = true
+		valid = append(valid, id)
+	}
+	return valid
+}
+
+func (srv *webServer) stopAutosendLocked() {
+	if srv.autosendStopCh != nil {
+		close(srv.autosendStopCh)
+	}
+	srv.autosendStopCh = nil
+	srv.autosendEnabled = false
+	srv.autosendAccountIDs = nil
+	srv.autosendMessages = nil
+	srv.autosendPresetName = ""
+	srv.autosendShuffleDeck = nil
+	srv.autosendNextIndex = 0
+}
+
+func (srv *webServer) stopAutosend() {
+	srv.autosendMu.Lock()
+	srv.stopAutosendLocked()
+	srv.autosendMu.Unlock()
+}
+
+func (srv *webServer) startAutosend(accountIDs []int, messages []string, presetName string, minSec, maxSec int) error {
+	accountIDs = srv.validAccountPositions(accountIDs)
+	if len(accountIDs) == 0 {
+		return fmt.Errorf("select at least one account")
+	}
+	if messages != nil && len(messages) == 0 {
+		return fmt.Errorf("add at least one message")
+	}
+	minSec, maxSec = sanitizeAutosendRange(minSec, maxSec)
+	stopCh := make(chan struct{})
+	srv.autosendMu.Lock()
+	srv.stopAutosendLocked()
+	srv.autosendEnabled = true
+	srv.autosendMinSec = minSec
+	srv.autosendMaxSec = maxSec
+	srv.autosendAccountIDs = copyIntSlice(accountIDs)
+	srv.autosendMessages = append([]string(nil), messages...)
+	srv.autosendPresetName = presetName
+	srv.autosendStopCh = stopCh
+	srv.autosendMu.Unlock()
+	go srv.runAutosendSequence(stopCh, accountIDs, minSec, maxSec)
+	return nil
+}
+
+func (srv *webServer) accountPositionsFromStableIDs(stableIDs []int) []int {
+	seen := make(map[int]bool, len(stableIDs))
+	positions := make([]int, 0, len(stableIDs))
+	for _, stableID := range stableIDs {
+		if stableID < 1 || seen[stableID] {
+			continue
+		}
+		position, ok := srv.store.PositionByStableID(stableID)
+		if !ok {
+			continue
+		}
+		seen[stableID] = true
+		positions = append(positions, position)
+	}
+	return positions
+}
+
 func (srv *webServer) handleAPIAutosend(rw http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		srv.autosendMu.Lock()
 		enabled := srv.autosendEnabled
-		interval := srv.autosendIntervalSec
+		minSec := srv.autosendMinSec
+		maxSec := srv.autosendMaxSec
+		accountIDs := copyIntSlice(srv.autosendAccountIDs)
+		activePreset := srv.autosendPresetName
+		activeMessageCount := len(srv.autosendMessages)
 		srv.autosendMu.Unlock()
+		if minSec == 0 {
+			minSec = 60
+		}
+		if maxSec == 0 {
+			maxSec = minSec
+		}
+		preset, hasPreset := readAutoSenderPreset()
 		rw.Header().Set("Content-Type", "application/json")
+		messageCount := len(readAutoSenderMessages())
+		if activeMessageCount > 0 {
+			messageCount = activeMessageCount
+		}
 		_ = json.NewEncoder(rw).Encode(map[string]interface{}{
-			"enabled":       enabled,
-			"interval_sec":  interval,
+			"enabled":        enabled,
+			"min_sec":        minSec,
+			"max_sec":        maxSec,
+			"account_ids":    accountIDs,
+			"messages_count": messageCount,
+			"active_preset":  activePreset,
+			"file":           autoSenderFileName,
+			"preset_file":    autoSenderPresetsFileName,
+			"preset": map[string]interface{}{
+				"exists":  hasPreset,
+				"min_sec": preset.MinSec,
+				"max_sec": preset.MaxSec,
+			},
 		})
 		return
 	}
@@ -234,77 +800,231 @@ func (srv *webServer) handleAPIAutosend(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	var body struct {
-		Enabled     bool `json:"enabled"`
-		IntervalSec int  `json:"interval_sec"`
+		Enabled     bool  `json:"enabled"`
+		IntervalSec int   `json:"interval_sec"`
+		MinSec      int   `json:"min_sec"`
+		MaxSec      int   `json:"max_sec"`
+		AccountIDs  []int `json:"account_ids"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(rw, "invalid json", http.StatusBadRequest)
 		return
 	}
-	sec := body.IntervalSec
-	if sec < 10 {
-		sec = 10
+	if body.IntervalSec > 0 && body.MinSec == 0 && body.MaxSec == 0 {
+		body.MinSec = body.IntervalSec
+		body.MaxSec = body.IntervalSec
 	}
-	if sec > 86400 {
-		sec = 86400
-	}
-
-	srv.autosendMu.Lock()
-	if srv.autosendStopCh != nil {
-		close(srv.autosendStopCh)
-		srv.autosendStopCh = nil
-	}
-	srv.autosendEnabled = body.Enabled
-	srv.autosendIntervalSec = sec
-	if body.Enabled {
-		stopCh := make(chan struct{})
-		srv.autosendStopCh = stopCh
-		srv.autosendMu.Unlock()
-
-		go func() {
-			ticker := time.NewTicker(time.Duration(sec) * time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-srv.ctx.Done():
-					return
-				case <-stopCh:
-					return
-				case <-ticker.C:
-					srv.autosendMu.Lock()
-					nextIdx := srv.autosendNextIndex
-					srv.autosendMu.Unlock()
-
-					messages := readMessagesFile()
-					if len(messages) == 0 {
-						continue
-					}
-					msg := messages[nextIdx%len(messages)]
-					srv.autosendMu.Lock()
-					srv.autosendNextIndex = nextIdx + 1
-					srv.autosendMu.Unlock()
-
-					list := srv.store.List()
-					var currentID int
-					for _, a := range list {
-						if a.Current {
-							currentID = a.Num
-							break
-						}
-					}
-					if currentID == 0 {
-						continue
-					}
-					srv.manager.Send(currentID, msg)
-				}
-			}
-		}()
+	minSec, maxSec := sanitizeAutosendRange(body.MinSec, body.MaxSec)
+	if !body.Enabled {
+		srv.stopAutosend()
 	} else {
-		srv.autosendMu.Unlock()
+		if len(readAutoSenderMessages()) == 0 {
+			http.Error(rw, autoSenderFileName+" is empty or missing", http.StatusBadRequest)
+			return
+		}
+		if err := srv.startAutosend(body.AccountIDs, nil, "", minSec, maxSec); err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
 	rw.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(rw).Encode(map[string]bool{"ok": true})
+}
+
+func (srv *webServer) handleAPIAutosendPreset(rw http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		preset, ok := readAutoSenderPreset()
+		rw.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(rw).Encode(map[string]interface{}{
+			"exists":      ok,
+			"min_sec":     preset.MinSec,
+			"max_sec":     preset.MaxSec,
+			"file":        autoSenderPresetsFileName,
+			"updated_at":  preset.UpdatedAt,
+			"preset_name": preset.Name,
+		})
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		MinSec int `json:"min_sec"`
+		MaxSec int `json:"max_sec"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(rw, "invalid json", http.StatusBadRequest)
+		return
+	}
+	minSec, maxSec := sanitizeAutosendRange(body.MinSec, body.MaxSec)
+	if err := writeAutoSenderPreset(minSec, maxSec); err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(rw).Encode(map[string]interface{}{
+		"ok":      true,
+		"min_sec": minSec,
+		"max_sec": maxSec,
+		"file":    autoSenderPresetsFileName,
+	})
+}
+
+func (srv *webServer) handleAPIEventPresets(rw http.ResponseWriter, r *http.Request) {
+	if !srv.adminRelease {
+		http.Error(rw, "admin release only", http.StatusForbidden)
+		return
+	}
+	file, err := readAutoSenderPresetsFile()
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		srv.autosendMu.Lock()
+		active := srv.autosendPresetName
+		srv.autosendMu.Unlock()
+		rw.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(rw).Encode(map[string]interface{}{
+			"active":  active,
+			"presets": file.Presets,
+		})
+	case http.MethodPost:
+		var body struct {
+			Action           string   `json:"action"`
+			Name             string   `json:"name"`
+			OriginalName     string   `json:"original_name"`
+			Messages         []string `json:"messages"`
+			AccountStableIDs []int    `json:"account_stable_ids"`
+			MinSec           int      `json:"min_sec"`
+			MaxSec           int      `json:"max_sec"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(rw, "invalid json", http.StatusBadRequest)
+			return
+		}
+		name, err := normalizePresetName(body.Name)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if strings.EqualFold(strings.TrimSpace(body.Action), "start") {
+			preset, _, ok := findAutoSenderPreset(file, name)
+			if !ok {
+				http.Error(rw, "preset not found", http.StatusNotFound)
+				return
+			}
+			messages, err := normalizePresetMessages(preset.Messages)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusBadRequest)
+				return
+			}
+			accountIDs := srv.accountPositionsFromStableIDs(preset.AccountStableIDs)
+			if len(accountIDs) == 0 {
+				http.Error(rw, "preset has no available accounts", http.StatusBadRequest)
+				return
+			}
+			file.Active = preset.Name
+			if err := writeAutoSenderPresetsFile(file); err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if err := srv.startAutosend(accountIDs, messages, preset.Name, preset.MinSec, preset.MaxSec); err != nil {
+				http.Error(rw, err.Error(), http.StatusBadRequest)
+				return
+			}
+			rw.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(rw).Encode(map[string]interface{}{"ok": true, "active": preset.Name})
+			return
+		}
+
+		messages, err := normalizePresetMessages(body.Messages)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			return
+		}
+		minSec, maxSec := sanitizeAutosendRange(body.MinSec, body.MaxSec)
+		stableIDs := make([]int, 0, len(body.AccountStableIDs))
+		seen := make(map[int]bool, len(body.AccountStableIDs))
+		for _, stableID := range body.AccountStableIDs {
+			if stableID < 1 || seen[stableID] {
+				continue
+			}
+			if _, ok := srv.store.PositionByStableID(stableID); !ok {
+				http.Error(rw, "preset contains an unknown account", http.StatusBadRequest)
+				return
+			}
+			seen[stableID] = true
+			stableIDs = append(stableIDs, stableID)
+		}
+		if len(stableIDs) == 0 {
+			http.Error(rw, "select at least one account", http.StatusBadRequest)
+			return
+		}
+		preset := autoSenderPreset{
+			Name:             name,
+			Messages:         messages,
+			AccountStableIDs: stableIDs,
+			MinSec:           minSec,
+			MaxSec:           maxSec,
+			UpdatedAt:        time.Now().UTC(),
+		}
+		targetIndex := -1
+		if strings.TrimSpace(body.OriginalName) != "" {
+			if _, i, ok := findAutoSenderPreset(file, body.OriginalName); ok {
+				targetIndex = i
+			}
+		}
+		if _, i, ok := findAutoSenderPreset(file, name); ok && i != targetIndex {
+			http.Error(rw, "a preset with this name already exists", http.StatusConflict)
+			return
+		}
+		if targetIndex >= 0 {
+			file.Presets[targetIndex] = preset
+		} else if _, i, ok := findAutoSenderPreset(file, name); ok {
+			file.Presets[i] = preset
+		} else {
+			file.Presets = append(file.Presets, preset)
+		}
+		if err := writeAutoSenderPresetsFile(file); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		rw.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(rw).Encode(map[string]interface{}{"ok": true, "preset": preset})
+	case http.MethodDelete:
+		name, err := normalizePresetName(r.URL.Query().Get("name"))
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			return
+		}
+		_, i, ok := findAutoSenderPreset(file, name)
+		if !ok {
+			http.Error(rw, "preset not found", http.StatusNotFound)
+			return
+		}
+		deletedName := file.Presets[i].Name
+		file.Presets = append(file.Presets[:i], file.Presets[i+1:]...)
+		if strings.EqualFold(file.Active, deletedName) {
+			file.Active = ""
+		}
+		if err := writeAutoSenderPresetsFile(file); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		srv.autosendMu.Lock()
+		if strings.EqualFold(srv.autosendPresetName, deletedName) {
+			srv.stopAutosendLocked()
+		}
+		srv.autosendMu.Unlock()
+		rw.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(rw).Encode(map[string]bool{"ok": true})
+	default:
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 func (srv *webServer) handleAPIRunners(rw http.ResponseWriter, r *http.Request) {
@@ -348,19 +1068,143 @@ func (srv *webServer) handleAPIRunners(rw http.ResponseWriter, r *http.Request) 
 	_ = json.NewEncoder(rw).Encode(list)
 }
 
-func (srv *webServer) handleAPIChannel(rw http.ResponseWriter, r *http.Request) {
+func streamUptimeSeconds(startTime string, now time.Time) int64 {
+	started, err := time.Parse(time.RFC3339, strings.TrimSpace(startTime))
+	if err != nil {
+		started, err = time.Parse(time.RFC3339Nano, strings.TrimSpace(startTime))
+	}
+	if err != nil || started.After(now) {
+		return 0
+	}
+	return int64(now.Sub(started).Seconds())
+}
+
+func streamStatusFromChannel(slug string, channel kickapitypes.ChannelData, now time.Time) streamStatus {
+	return streamStatus{
+		Slug:          slug,
+		IsLive:        channel.Stream.IsLive,
+		StartTime:     channel.Stream.StartTime,
+		ViewerCount:   channel.Stream.ViewerCount,
+		Title:         channel.StreamTitle,
+		UptimeSeconds: streamUptimeSeconds(channel.Stream.StartTime, now),
+		CheckedAt:     now.UTC(),
+	}
+}
+
+func (srv *webServer) fetchStreamStatus() (streamStatus, error) {
+	slug := srv.currentChannelSlug()
+	if slug == "" {
+		return streamStatus{}, fmt.Errorf("channel is not configured")
+	}
+	srv.streamStatusMu.Lock()
+	if srv.streamStatusCached.Slug == slug && time.Since(srv.streamStatusCachedAt) < 15*time.Second {
+		status := srv.streamStatusCached
+		if status.IsLive {
+			status.UptimeSeconds = streamUptimeSeconds(status.StartTime, time.Now())
+		}
+		srv.streamStatusMu.Unlock()
+		return status, nil
+	}
+	srv.streamStatusMu.Unlock()
+
+	ctx, cancel := context.WithTimeout(srv.ctx, 8*time.Second)
+	defer cancel()
+	var lastErr error
+	for _, account := range srv.store.List() {
+		token, _, proxy, _, ok := srv.store.GetAccountByIndex(account.Num)
+		if !ok || strings.TrimSpace(token) == "" {
+			continue
+		}
+		api, err := kick.NewAPIClient(kickapitypes.APIClientConfig{HTTPClient: apiClientWithProxy(proxy)})
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		channels, err := api.Channel().GetChannelsByBroadcasterSlug(ctx, token, []string{slug})
+		if err != nil && proxy != "" && isNetworkOrProxyError(err) {
+			api, _ = kick.NewAPIClient(kickapitypes.APIClientConfig{HTTPClient: http.DefaultClient})
+			channels, err = api.Channel().GetChannelsByBroadcasterSlug(ctx, token, []string{slug})
+		}
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if len(channels.Data) == 0 {
+			lastErr = fmt.Errorf("channel not found")
+			continue
+		}
+		channel := channels.Data[0]
+		now := time.Now()
+		status := streamStatusFromChannel(slug, channel, now)
+		srv.streamStatusMu.Lock()
+		srv.streamStatusCached = status
+		srv.streamStatusCachedAt = now
+		srv.streamStatusMu.Unlock()
+		return status, nil
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no account token available")
+	}
+	return streamStatus{}, lastErr
+}
+
+func (srv *webServer) handleAPIStreamStatus(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	status, err := srv.fetchStreamStatus()
+	if err != nil {
+		http.Error(rw, "stream status unavailable", http.StatusBadGateway)
+		return
+	}
 	rw.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(rw).Encode(map[string]string{"slug": srv.channelSlug})
+	_ = json.NewEncoder(rw).Encode(status)
+}
+
+func (srv *webServer) handleAPIChannel(rw http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		rw.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(rw).Encode(map[string]interface{}{
+			"slug":          srv.currentChannelSlug(),
+			"admin_release": srv.adminRelease,
+		})
+	case http.MethodPut, http.MethodPost:
+		var body struct {
+			Slug        string `json:"slug"`
+			ChannelSlug string `json:"channel_slug"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(rw, "invalid json", http.StatusBadRequest)
+			return
+		}
+		rawSlug := body.ChannelSlug
+		if rawSlug == "" {
+			rawSlug = body.Slug
+		}
+		slug, err := normalizeChannelSlugInput(rawSlug)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := writeChannelSlugToDotenv(slug); err != nil {
+			log.Printf("channel: write .env: %v", err)
+			http.Error(rw, "could not save .env", http.StatusInternalServerError)
+			return
+		}
+		srv.switchChannel(slug)
+		rw.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(rw).Encode(map[string]string{"status": "ok", "slug": slug})
+	default:
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // revalidateLicense calls the license server /validate; if status is not "active", sets gate to invalid.
 // So when the user refreshes the dashboard after admin revoke, they get the license page again.
 func (srv *webServer) revalidateLicense() {
-	if srv.licenseServerURL == "" || srv.licenseGate == nil || srv.licenseStore == nil {
+	if srv.skipLicense || srv.licenseServerURL == "" || srv.licenseGate == nil || srv.licenseStore == nil {
 		return
 	}
 	payload, err := srv.licenseStore.Load()
@@ -394,7 +1238,14 @@ func (srv *webServer) revalidateLicense() {
 func (srv *webServer) kickConfigured() bool {
 	return strings.TrimSpace(srv.clientID) != "" &&
 		strings.TrimSpace(srv.clientSecret) != "" &&
-		strings.TrimSpace(srv.channelSlug) != ""
+		strings.TrimSpace(srv.currentChannelSlug()) != ""
+}
+
+func (srv *webServer) licenseAllowed() bool {
+	if srv.skipLicense {
+		return true
+	}
+	return srv.licenseGate != nil && srv.licenseGate.Valid() && srv.licenseServerURL != ""
 }
 
 func (srv *webServer) handleDashboard(rw http.ResponseWriter, r *http.Request) {
@@ -414,8 +1265,7 @@ func (srv *webServer) handleDashboard(rw http.ResponseWriter, r *http.Request) {
 	}
 	// При каждой загрузке дашборда перепроверяем лицензию (если отозвана — покажем страницу лицензии)
 	srv.revalidateLicense()
-	// Требуем лицензию: либо сервер настроен и ключ не валиден, либо сервер не настроен (обхода нет)
-	if srv.licenseGate != nil && !srv.licenseGate.Valid() || srv.licenseServerURL == "" {
+	if !srv.licenseAllowed() {
 		data, err := staticFS.ReadFile("static/license.html")
 		if err != nil {
 			http.Error(rw, "license page not found", http.StatusNotFound)
@@ -656,6 +1506,9 @@ func (srv *webServer) handleAPIAccountsSub(rw http.ResponseWriter, r *http.Reque
 			http.Error(rw, err.Error(), http.StatusNotFound)
 			return
 		}
+		srv.broadcasterMu.Lock()
+		srv.broadcasterID = 0
+		srv.broadcasterMu.Unlock()
 	case "name":
 		var body struct {
 			Name string `json:"name"`
@@ -750,7 +1603,7 @@ func (srv *webServer) handleViewerBotStart(rw http.ResponseWriter, r *http.Reque
 	}
 	slug := strings.TrimSpace(body.ChannelSlug)
 	if slug == "" {
-		slug = srv.channelSlug
+		slug = srv.currentChannelSlug()
 	}
 	if slug == "" {
 		http.Error(rw, "channel_slug required or set CHANNEL_SLUG", http.StatusBadRequest)
@@ -794,11 +1647,11 @@ func (srv *webServer) handleViewerBotLog(rw http.ResponseWriter, r *http.Request
 	_ = json.NewEncoder(rw).Encode(map[string]interface{}{"lines": lines})
 }
 
-// requireLicense returns 403 when license is not valid (в т.ч. если сервер не настроен — обхода нет).
+// requireLicense returns 403 when license is not valid (unless SKIP_LICENSE test mode).
 func (srv *webServer) requireLicense(h http.HandlerFunc) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Cache-Control", "no-store")
-		if srv.licenseGate == nil || !srv.licenseGate.Valid() || srv.licenseServerURL == "" {
+		if !srv.licenseAllowed() {
 			http.Error(rw, "license required", http.StatusForbidden)
 			return
 		}
@@ -810,7 +1663,7 @@ func (srv *webServer) requireLicense(h http.HandlerFunc) http.HandlerFunc {
 func (srv *webServer) requireLicenseOAuth(h http.HandlerFunc) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Cache-Control", "no-store")
-		if srv.licenseGate == nil || !srv.licenseGate.Valid() || srv.licenseServerURL == "" {
+		if !srv.licenseAllowed() {
 			srv.writeOAuthLicenseNeededPage(rw)
 			return
 		}
@@ -821,6 +1674,11 @@ func (srv *webServer) requireLicenseOAuth(h http.HandlerFunc) http.HandlerFunc {
 func (srv *webServer) handleLicenseActivate(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if srv.skipLicense {
+		rw.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(rw).Encode(map[string]bool{"ok": true})
 		return
 	}
 	if srv.licenseServerURL == "" || srv.licenseGate == nil || srv.licenseStore == nil {
@@ -894,7 +1752,15 @@ func (srv *webServer) handleLicenseActivate(rw http.ResponseWriter, r *http.Requ
 	_ = json.NewEncoder(rw).Encode(map[string]bool{"ok": true})
 }
 
-func runWebServer(ctx context.Context, store *accountsStore, channelSlug string, port string, manager *runner.AccountManager, vb *viewerbot.Bot, oauthClient kickcontracts.OAuthClient, clientID, clientSecret string, shutdownFn func(), gate *licenseGate, licStore *licensestore.Store, licenseURL, licenseSecret, deviceFP string) {
+func (srv *webServer) sendTaskForMessage(message, replyToMessageID string) runner.SendTask {
+	return runner.SendTask{
+		Message:          message,
+		ReplyToMessageID: strings.TrimSpace(replyToMessageID),
+		AllowDuplicate:   srv.adminRelease || isKnownKickEmojiContent(message),
+	}
+}
+
+func runWebServer(ctx context.Context, store *accountsStore, channelSlug string, port string, manager *runner.AccountManager, vb *viewerbot.Bot, oauthClient kickcontracts.OAuthClient, clientID, clientSecret string, onChannelChanged func(string), shutdownFn func(), gate *licenseGate, licStore *licensestore.Store, licenseURL, licenseSecret, deviceFP string, skipLicense, adminRelease bool) {
 	if port == "" {
 		port = "8080"
 	}
@@ -921,9 +1787,9 @@ func runWebServer(ctx context.Context, store *accountsStore, channelSlug string,
 	srv := &webServer{
 		ctx:               ctx,
 		store:             store,
-		channelSlug:       channelSlug,
 		manager:           manager,
 		viewerBot:         vb,
+		onChannelChanged:  onChannelChanged,
 		onShutdown:        shutdownFn,
 		oauthClient:       oauthClient,
 		clientID:          clientID,
@@ -935,7 +1801,10 @@ func runWebServer(ctx context.Context, store *accountsStore, channelSlug string,
 		licenseServerURL:  licenseURL,
 		licenseHMACSecret: licenseSecret,
 		deviceFingerprint: deviceFP,
+		skipLicense:       skipLicense,
+		adminRelease:      adminRelease,
 	}
+	srv.switchChannel(channelSlug)
 	mux := http.NewServeMux()
 	if emotesFS, err := fs.Sub(staticFS, "static/emotes"); err == nil {
 		mux.Handle("/emotes/", http.StripPrefix("/emotes/", http.FileServer(http.FS(emotesFS))))
@@ -968,13 +1837,20 @@ func runWebServer(ctx context.Context, store *accountsStore, channelSlug string,
 	}
 	mux.HandleFunc("/api/accounts", srv.requireLicense(srv.handleAPIAccounts))
 	mux.HandleFunc("/api/accounts/current", srv.requireLicense(srv.handleAPICurrent))
+	mux.HandleFunc("/api/accounts/order", srv.requireLicense(srv.handleAPIAccountsOrder))
 	mux.HandleFunc("/api/accounts/", srv.requireLicense(srv.handleAPIAccountsSub))
 	mux.HandleFunc("/api/status", srv.requireLicense(srv.handleAPIStatus))
 	mux.HandleFunc("/api/runners", srv.requireLicense(srv.handleAPIRunners))
 	mux.HandleFunc("/api/send", srv.requireLicense(srv.handleAPISend))
+	mux.HandleFunc("/api/chat/history", srv.requireLicense(srv.handleAPIChatHistory))
+	mux.HandleFunc("/api/chat/events", srv.requireLicense(srv.handleAPIChatEvents))
+	mux.HandleFunc("/api/emotes", srv.requireLicense(srv.handleAPIEmotes))
 	mux.HandleFunc("/api/messages", srv.requireLicense(srv.handleAPIMessages))
 	mux.HandleFunc("/api/autosend", srv.requireLicense(srv.handleAPIAutosend))
+	mux.HandleFunc("/api/autosend/preset", srv.requireLicense(srv.handleAPIAutosendPreset))
+	mux.HandleFunc("/api/autosend/presets", srv.requireLicense(srv.handleAPIEventPresets))
 	mux.HandleFunc("/api/channel", srv.requireLicense(srv.handleAPIChannel))
+	mux.HandleFunc("/api/stream/status", srv.requireLicense(srv.handleAPIStreamStatus))
 	mux.HandleFunc("/api/shutdown", srv.requireLicense(srv.handleAPIShutdown))
 	mux.HandleFunc("/api/viewerbot/start", srv.requireLicense(srv.handleViewerBotStart))
 	mux.HandleFunc("/api/viewerbot/stop", srv.requireLicense(srv.handleViewerBotStop))

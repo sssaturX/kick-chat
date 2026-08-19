@@ -48,7 +48,7 @@ func (f *Factory) newTransport(proxyKey string) *http.Transport {
 		MaxIdleConns:          200,
 		MaxIdleConnsPerHost:   100,
 		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:  10 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DisableKeepAlives:     false,
 		ForceAttemptHTTP2:     true,
@@ -70,11 +70,15 @@ func parseProxy(s string) (host, port, user, pass string, ok bool) {
 	if s == "" {
 		return "", "", "", "", false
 	}
-	parts := strings.SplitN(s, ":", 4)
-	if len(parts) != 4 {
+	parts := strings.Split(s, ":")
+	switch len(parts) {
+	case 2:
+		return parts[0], parts[1], "", "", parts[0] != "" && parts[1] != ""
+	case 4:
+		return parts[0], parts[1], parts[2], parts[3], parts[0] != "" && parts[1] != ""
+	default:
 		return "", "", "", "", false
 	}
-	return parts[0], parts[1], parts[2], parts[3], true
 }
 
 func (f *Factory) dialContextForProxy(proxyStr string) func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -83,12 +87,19 @@ func (f *Factory) dialContextForProxy(proxyStr string) func(ctx context.Context,
 		return nil
 	}
 	addr := net.JoinHostPort(host, port)
-	auth := &proxy.Auth{User: user, Password: pass}
+	var auth *proxy.Auth
+	if user != "" || pass != "" {
+		auth = &proxy.Auth{User: user, Password: pass}
+	}
 	dialer, err := proxy.SOCKS5("tcp", addr, auth, proxy.Direct)
 	if err != nil {
 		return nil
 	}
+	ctxDialer, _ := dialer.(proxy.ContextDialer)
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if ctxDialer != nil {
+			return ctxDialer.DialContext(ctx, network, addr)
+		}
 		return dialer.Dial(network, addr)
 	}
 }

@@ -4,16 +4,18 @@ import "time"
 
 // Состояния аккаунта (state machine).
 const (
-	StateOnline       = "ONLINE"
-	StateRateLimited  = "RATE_LIMITED"
-	StateCooldown     = "COOLDOWN"
-	StateInvalid      = "INVALID"
-	StateError        = "ERROR"
+	StateOnline      = "ONLINE"
+	StateRateLimited = "RATE_LIMITED"
+	StateCooldown    = "COOLDOWN"
+	StateInvalid     = "INVALID"
+	StateError       = "ERROR"
 )
 
 // SendTask — задача на отправку одного сообщения.
 type SendTask struct {
-	Message string
+	Message          string
+	ReplyToMessageID string
+	AllowDuplicate   bool
 }
 
 // SendResult — результат отправки (для backoff и смены состояния).
@@ -35,4 +37,4 @@ type AccountState struct {
 }
 
 // SendFunc выполняет одну отправку сообщения от имени аккаунта. Вызывается из worker.
-type SendFunc func(accountID int, message string) SendResult
+type SendFunc func(accountID int, task SendTask) SendResult

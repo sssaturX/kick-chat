@@ -1,122 +1,106 @@
-# Реализованный функционал — SaturX
+# SaturX — implemented features
 
-Полный список того, что реализовано в проекте.
-
----
-
-## 1. OAuth и авторизация
-
-- Регистрация и вход через **OAuth 2.0 (PKCE)** на Kick.
-- Scopes: **channel:read**, **chat:write** (получение канала и отправка сообщений в чат).
-- При первом запуске без аккаунтов показывается ссылка для авторизации; после редиректа на `http://localhost:<порт>/oauth/callback` токен сохраняется.
-- Поддержка переменных `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET`, `KICK_REDIRECT_URI` (или `.env`).
+What the project currently does.
 
 ---
 
-## 2. Несколько аккаунтов
+## 1. OAuth and auth
 
-- **Хранение:** все аккаунты в одном файле `.kick_accounts.json` (id, name, token, proxy).
-- **Импорт:** при пустом списке можно импортировать один аккаунт из `KICK_ACCESS_TOKEN` или из старого файла `.kick_access_token`.
-- **Переключение:** в консоли команда `use N` (N — номер аккаунта); выбранный аккаунт запоминается между запусками (`last_used`).
-- **Добавление:** команда `add` — запуск OAuth, новый токен добавляется в список и становится текущим.
-- **Список:** команды `accounts` и `list` — вывод всех аккаунтов с пометкой текущего.
-
----
-
-## 3. Консольный режим (CLI)
-
-- Запуск: `go run .` или бинарник; параллельно поднимается веб-дашборд.
-- Ввод сообщения с клавиатуры и Enter — отправка в чат от **текущего** аккаунта.
-- Команды:
-  - `use N` — переключить аккаунт.
-  - `accounts` / `list` — список аккаунтов.
-  - `add` — добавить аккаунт (OAuth).
-  - `!quit` / `quit` — выход из приложения.
-- В приглашении отображается имя текущего аккаунта, например `[yyetuujjj] >`.
+- Kick **OAuth 2.0 (PKCE)** sign-in.
+- Scopes: **channel:read**, **chat:write**.
+- First launch without accounts shows the Kick authorize flow; after redirect to `http://localhost:<port>/oauth/callback` the token is stored.
+- Config via `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET`, `KICK_REDIRECT_URI` (or `.env`).
 
 ---
 
-## 4. SOCKS5-прокси
+## 2. Multiple accounts
 
-- У каждого аккаунта может быть свой прокси в формате **host:port:user:pass** (поле `proxy` в `.kick_accounts.json`).
-- Файл **`.kick_proxies`**: по одной строке на аккаунт (строка 1 → аккаунт 1 и т.д.); при старте пустые поля `proxy` заполняются из этого файла.
-- Все запросы к API Kick (канал, отправка сообщений) идут через прокси **текущего** аккаунта; если прокси не задан — прямое соединение.
-- **Fallback:** при ошибке соединения/таймауте через прокси запрос повторяется без прокси; при успехе в лог пишется, что использовано обычное соединение.
-- **Кэш HTTP-клиентов:** один клиент на каждую строку прокси (переиспользование TCP/Keep-Alive), чтобы отправка сообщений была быстрее.
-
----
-
-## 5. Устойчивость к 401 и невалидным токенам
-
-- При старте, если текущий аккаунт возвращает 401 при запросе канала — приложение не падает; выводится подсказка переключить аккаунт или добавить новый.
-- При смене аккаунта (`use N`) заново запрашивается канал; при успехе обновляется `broadcaster_user_id`.
-- При первой отправке сообщения, если канал ещё не был получен — повторная попытка с текущим токеном; при 401 — подсказка сменить аккаунт или добавить.
+- **Storage:** `.kick_accounts.json` (id, name, token, proxy).
+- **Import:** if the list is empty, one account can be imported from `KICK_ACCESS_TOKEN` or the legacy `.kick_access_token` file.
+- **Switch:** dashboard current account is persisted (`last_used`).
+- **Add:** OAuth add; the new token is appended and becomes current.
+- **List:** dashboard and `/api/accounts`.
 
 ---
 
-## 6. Веб-дашборд
+## 3. SOCKS5 proxies
 
-- Запускается автоматически при старте приложения; порт по умолчанию **8080** (переменная `DASHBOARD_PORT`).
-- Страница одна: встроенный HTML/CSS/JS через `embed` в бинарник (папка `static/`).
-
-**Макет:**
-- **Шапка:** логотип «SaturX», бейдж канала (slug), метка «Обновлено…», кнопка **«Отключить»** (завершение работы софта).
-- **Слева:** панель «Чат» — iframe с чатом Kick (`https://kick.com/<channel_slug>`).
-- **По центру:** панель «Трансляция» — embed плеера Kick (`https://player.kick.com/<channel_slug>`).
-- **Справа:** панель «Аккаунты» — список аккаунтов с индикатором **онлайн** (зелёный = запрос через прокси и к API прошёл успешно, красный = ошибка).
-- **Нижняя строка:** выбор аккаунта (select), поле ввода сообщения (с счётчиком символов 0/500), кнопка «Отправить».
-
-**Полоса эмодзи:**
-- Над полем ввода — горизонтальная полоса из 10 официальных эмодзи Kick: emojiCheerful, emojiAngry, emojiBlowKiss, emojiAstonished, emojiAngel, emojiAwake, emojiBubbly, emojiClown, emojiCool, emojiCrave.
-- Иконки подгружаются с сервера по пути `/emotes/<slug>.gif` (файлы в `static/emotes/`); при ошибке загрузки показывается fallback-символ.
-- Клик по эмодзи **сразу отправляет** в чат код вида `:emojiCheerful:` от выбранного аккаунта (без ввода текста в поле).
-
-**Кнопка «Отключить»:**  
-POST на `/api/shutdown` → ответ 200 → через 200 ms завершение процесса (`os.Exit(0)`). Останавливается и дашборд, и консольное приложение.
-
-**Обновление данных:** список аккаунтов и статусы онлайн обновляются раз в 30 секунд; подпись «Обновлено…» обновляется раз в 10 секунд.
+- Each account can have its own proxy: **host:port:user:pass**.
+- Optional **`.kick_proxies`**: one line per account (line 1 → account 1, …); empty `proxy` fields are filled on startup.
+- Kick API calls use the account proxy; if none is set, the app uses a direct connection.
+- **Fallback:** on proxy connect/timeout errors the request is retried without a proxy.
+- **HTTP client cache:** one client per proxy string (TCP/Keep-Alive reuse).
 
 ---
 
-## 7. API (бэкенд)
+## 4. 401 / invalid tokens
 
-- **GET /api/accounts** — список аккаунтов (id, name, current).
-- **GET /api/status** — для каждого аккаунта флаг online (успешный запрос к API через его прокси/токен).
-- **POST /api/send** — тело `{ "account_id": N, "message": "текст" }` — отправить сообщение в чат от указанного аккаунта.
-- **GET /api/channel** — вернуть `{ "slug": "<channel_slug>" }` (для подстановки в iframe/embed).
-- **POST /api/shutdown** — завершить работу приложения (после ответа 200 процесс завершается).
-- **GET /emotes/<name>.gif** — раздача файлов из `static/emotes/` (иконки эмодзи для полосы).
+- Startup does not crash if the current account gets 401 on channel lookup.
+- Switching accounts re-resolves the channel / broadcaster id.
+- Chat send retries channel resolution; on 401 the UI/logs tell you to switch or re-add the account.
 
 ---
 
-## 8. Конфигурация и файлы
+## 5. Web dashboard
 
-| Файл / переменная | Назначение |
-|-------------------|------------|
-| `.env` | KICK_CLIENT_ID, KICK_CLIENT_SECRET, KICK_REDIRECT_URI, CHANNEL_SLUG, DASHBOARD_PORT, KICK_ACCESS_TOKEN |
-| `.kick_accounts.json` | Аккаунты: id, name, token, proxy; last_used |
-| `.kick_proxies` | Строки прокси (host:port:user:pass), по одной на аккаунт по порядку |
-| `static/emotes/*.gif` | Иконки эмодзи для полосы (emojiCheerful.gif и т.д.) |
+- Starts with the app; default port **8080** (`DASHBOARD_PORT`).
+- Single page, HTML/CSS/JS embedded via `go:embed` from `static/`.
+
+Layout:
+
+- **Header:** SaturX logo, channel slug, stream status, theme, add account, shutdown.
+- **Chat:** live Kick chat.
+- **Stream:** Kick player embed (`https://player.kick.com/<channel_slug>`).
+- **Accounts:** linked accounts and runner/ready status.
+- **Bottom bar:** account select, message input (500 chars), send.
+
+Emote bar: official Kick emotes plus local GIFs under `/emotes/`. Clicking an emote sends it from the selected account.
+
+Shutdown: `POST /api/shutdown` then the process exits.
 
 ---
 
-## 9. Стек и зависимости
+## 6. Backend API (selected)
 
-- **Язык:** Go 1.21+.
+- `GET /api/accounts` — accounts (id, stable_id, name, current, proxy)
+- `GET /api/status` — ready flag per account
+- `POST /api/send` — `{ "account_id": N, "message": "text" }`
+- `GET /api/channel` — `{ "slug": "..." }`
+- `POST /api/shutdown` — stop the app
+- `GET /emotes/<name>.gif` — emote files from `static/emotes/`
+
+---
+
+## 7. Config files
+
+| File / variable | Purpose |
+|-----------------|---------|
+| `.env` | `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET`, `KICK_REDIRECT_URI`, `CHANNEL_SLUG`, `DASHBOARD_PORT` |
+| `.kick_accounts.json` | Accounts: id, name, token, proxy; last_used; display_order |
+| `.kick_proxies` | Proxy lines (`host:port:user:pass`) |
+| `static/emotes/*.gif` | Local emote icons |
+| `messages.txt` | Dashboard presets |
+| `auto-sender.txt` | Auto-sender lines |
+
+---
+
+## 8. Stack
+
+- **Language:** Go 1.24+.
 - **SDK:** [kick-go-sdk](https://github.com/henrikah/kick-go-sdk) v2.
-- **Дополнительно:** godotenv, golang.org/x/net (SOCKS5 proxy с логином/паролем).
-- Дашборд: один HTML-файл, шрифт Outfit (Google Fonts), без отдельного фронт-фреймворка.
+- **Also:** godotenv, golang.org/x/net (SOCKS5 with user/password).
+- Dashboard: one HTML file, no separate frontend framework.
 
 ---
 
-## 10. Сборка и запуск
+## 9. Build and run
 
 ```bash
 go mod tidy
 go build -o saturx .
 ./saturx
-# или
+# or
 go run .
 ```
 
-Дашборд: **http://localhost:8080** (или другой порт из `DASHBOARD_PORT`).
+Dashboard: **http://localhost:8080** (or `DASHBOARD_PORT`).

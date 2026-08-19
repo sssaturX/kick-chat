@@ -48,7 +48,7 @@ type Config struct {
 	// Referral bonus applied to inviter after a referred buyer is fulfilled.
 	ReferralBonusDays int
 
-	// Telegram user IDs allowed to use /admin (comma-separated), e.g. 941135938,123456789
+	// Telegram user IDs allowed to use /admin (comma-separated), e.g. 123456789,987654321
 	TelegramAdminIDs map[int64]struct{}
 
 	// Optional: HTTPS link to SaturX zip/installer (shown after payment and in /start)

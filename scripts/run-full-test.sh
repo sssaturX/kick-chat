@@ -24,7 +24,7 @@ export PORT=8000
 export DATABASE_URL="postgres://postgres:postgres@localhost:5434/licensedb?sslmode=disable"
 export REDIS_URL="redis://localhost:6379/0"
 export HMAC_SECRET="${HMAC_SECRET:-test-hmac-secret-32bytes-long}"
-export ADMIN_API_KEY="${ADMIN_API_KEY:-santori}"
+export ADMIN_API_KEY="${ADMIN_API_KEY:-admin-secret}"
 
 # ╨Ч╨░╨┐╤Г╤Б╨║ ╨▓ ╤Д╨╛╨╜╨╡; ╨╗╨╛╨│╨╕ ╨▓ ╤Д╨░╨╣╨╗
 ( cd "$LS_DIR" && go run ./cmd/server >> "$ROOT/license-server.log" 2>&1 ) &

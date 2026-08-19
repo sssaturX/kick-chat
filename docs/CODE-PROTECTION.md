@@ -1,63 +1,53 @@
-# Защита кода от копирования и реверса
+# Code protection notes
 
-Полностью защитить код нельзя: любой бинарник можно разбирать. Цель — поднять порог сложности и отсечь случайное копирование.
+You cannot fully prevent reverse engineering. The goal is to raise the cost of casual copying.
 
-## Что у вас есть
+## What you ship
 
-| Часть | Где живёт | Риск |
-|-------|-----------|------|
-| **SaturX**     | Go → один .exe | Исходников нет; реверс возможен, но трудоёмок |
-| **Viewerbot** | Python → PyInstaller .exe | Байткод можно распаковать и частично декомпилировать |
-| **Фронт (HTML/JS)** | Встроен в Go (`embed`) | Достаётся из exe, но не лежит отдельными файлами |
+| Part | Where it lives | Risk |
+|------|----------------|------|
+| **SaturX** | Go → one exe | No sources; reverse is possible but slower |
+| **Viewerbot** | Python → PyInstaller exe | Bytecode can be extracted and partly decompiled |
+| **UI (HTML/JS)** | Embedded in Go (`embed`) | Extractable from the exe, not shipped as a folder |
 
 ---
 
 ## 1. Go (SaturX)
 
-**Уже сделано в сборке:**  
-`-ldflags="-s -w"` — убирает таблицу символов и отладочную информацию. Размер exe меньше, дизассемблер показывает меньше подсказок.
+**Already in the release build:**  
+`-ldflags="-s -w"` strips symbols and debug info.
 
-**Дополнительно (по желанию):**
+**Optional:**
 
-- **Garble** — обфускация Go-бинарника (имена, строки, поток управления):  
+- **Garble** — obfuscate names, strings, control flow:  
   `go install mvdan.cc/garble@latest`  
-  затем в сборке:  
-  `garble -literals -tiny build -tags release -ldflags "..." -o SaturX.exe .`  
-  Строки и имена в бинарнике будут зашифрованы/заменены, реверс заметно сложнее.
+  then:  
+  `garble -literals -tiny build -tags release -ldflags "..." -o SaturX.exe .`
 
 ---
 
 ## 2. Viewerbot (Python)
 
-PyInstaller не защищает код: архив из exe распаковывается (например, pyinstxtractor), внутри — .pyc, их можно декомпилировать.
+PyInstaller is not protection: the archive can be unpacked and `.pyc` decompiled.
 
-**Варианты:**
+Options:
 
-- **PyArmor** (уже в сборке): в `test_view/kick-viewbot/build-viewerbot.ps1` перед PyInstaller вызывается `pyarmor gen -O obf kick.py`; в exe попадает обфусцированный байткод.  
-  Продвинутая защита (привязка к машине и т.п.) — в платной версии PyArmor.
-
-- **Cython**: перевести критичный код в .pyx, скомпилировать в .pyd (нативная библиотека). Исходный Python из такого не восстановить; реверс только на уровне C/asm.
-
-- **Важно:** не класть в код пароли, API-ключи, токены. Логику лицензирования держать на сервере (у вас так и сделано).
+- **PyArmor** (already in the build scripts): `pyarmor gen` before PyInstaller.
+- **Cython** for critical paths.
+- Never put passwords, API keys, or tokens in source. Keep license logic on the server.
 
 ---
 
-## 3. Фронт (HTML/JS)
+## 3. Frontend (HTML/JS)
 
-Сейчас статика встроена в exe через `//go:embed static`. Отдельной папки в релизе нет — это уже плюс.
-
-При желании можно перед сборкой:
-
-- Минифицировать и обфусцировать JS (например, `javascript-obfuscator`, `terser`).
-- Минифицировать HTML/CSS.  
-Это не запретит копирование, но усложнит чтение и копипаст логики.
+Static files are embedded with `//go:embed static`. Optional minify/obfuscate of JS/CSS before build.
 
 ---
 
-## 4. Общие правила
+## 4. Rules
 
-- **Секреты** (HMAC, ключи API и т.д.) не хранить в коде и по возможности не зашивать в бинарник в открытом виде. Лицензия проверяется на сервере — это и есть основная защита.
-- **Репозиторий**: не пушить .env, ключи, пароли. Использовать .gitignore и секреты только на сервере/у сборки.
-- **Обновления**: чем чаще вы обновляете бинарники, тем менее выгодно копировать старую версию; лицензия по серверу отсекает нелегальное использование.
+- Do not store HMAC/API secrets in source; prefer server-side license checks.
+- Do not push `.env`, keys, or passwords. Use `.gitignore`.
+- Frequent binary updates plus server-side license checks make stolen copies less useful.
 
-Итог: базовая защита уже в сборке (strip). Для усиления — Garble для Go и PyArmor для viewerbot; полную «неуязвимость» гарантировать нельзя.
+Bottom line: strip is already on. For more, use Garble (Go) and PyArmor (viewerbot). Nothing is unbreakable.

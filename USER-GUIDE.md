@@ -32,7 +32,7 @@ KICK_CLIENT_SECRET=your_client_secret
 CHANNEL_SLUG=your_channel_name
 ```
 
-- **CHANNEL_SLUG** is the channel segment in the Kick URL. For `kick.com/MyChannel`, use `MyChannel`.
+- **CHANNEL_SLUG** is the channel segment in the Kick URL. For `kick.com/your_channel`, use `your_channel`.
 - Optional: `DASHBOARD_PORT=8080` (web dashboard port; default is 8080).
 
 **Important:** you do **not** need to put the license server URL or internal signing keys in `.env` — those are already embedded in the build.

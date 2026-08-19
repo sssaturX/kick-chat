@@ -1,10 +1,15 @@
-# Не публиковать артефакты сборки / локальные релизы
+# Editor / local tooling (do not publish)
+.vscode/
+.cursor/
+.idea/
+
+# Do not publish build artifacts / local releases
 /build/
 /dashboard/
 /release/
 /license-server/releases/
 
-# Локальные бинарники, логи, вложенный клон (не для Git)
+# Local binaries, logs, nested clone (not for git)
 *.exe
 /kick
 kick-chat.log
@@ -16,7 +21,10 @@ test_view/kick-viewbot/
 .env
 .kick_access_token
 .kick_accounts.json
+.kick_license.dat
 .kick_proxies
+*.log
+license-server.log
 resource.syso
 release/.git
 release/.env

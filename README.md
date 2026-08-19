@@ -1,85 +1,176 @@
 # SaturX
 
-**Управление чатом Kick с нескольких аккаунтов через один веб-интерфейс.** Официальный OAuth API, без куков. Лицензионная защита и опциональный вьюербот в одной поставке.
+**Multi-account Kick dashboard:** chat, stream, OAuth accounts, presets, auto-send, optional license server, and optional viewer tools — one Go app, one browser window.
 
-*English product overview: [README.en.md](README.en.md).*
+[User guide](USER-GUIDE.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [License](LICENSE)
 
----
-
-## Что это
-
-SaturX — десктопное приложение + веб-дашборд для стримеров и менеджеров каналов на [Kick.com](https://kick.com):
-
-- **Несколько аккаунтов** — привязка через OAuth, переключение в один клик.
-- **Единый дашборд** — чат канала, трансляция и отправка сообщений в одном окне браузера.
-- **Официальный API** — работа через [developers.kick.com](https://developers.kick.com/), без паролей и куков в приложении.
-- **Лицензирование** — активация по ключу; количество устройств и срок задаются при выдаче ключа.
-- **Вьюербот** (опционально) — отдельный бинарник для накрутки зрителей, без установки Python.
-
-Подходит тем, кто ведёт или модерирует чат с нескольких аккаунтов и хочет держать всё в одном интерфейсе с контролем доступа по лицензии.
+![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-informational)
 
 ---
 
-## Возможности
+## What it is
 
-| Возможность | Описание |
-|-------------|----------|
-| Мультиаккаунт | Несколько аккаунтов Kick, переключение в дашборде |
-| OAuth | Вход через официальный Kick OAuth (chat:write, channel:read) |
-| Веб-дашборд | Чат + плеер трансляции + список аккаунтов + отправка сообщений на localhost |
-| Лицензия | Активация по ключу, привязка к устройству, продление/отзыв у продавца |
-| Прокси | Поддержка SOCKS5 по аккаунтам (файл или настройки в интерфейсе) |
-| Вьюербот | Отдельный exe для накрутки зрителей (если входит в вашу версию) |
+SaturX is a desktop application with an embedded web UI for [Kick.com](https://kick.com). Accounts are linked through **official Kick OAuth** (`channel:read`, `chat:write`). The app does not store Kick passwords or browser cookies.
 
----
+Typical use:
 
-## Требования
-
-- **ОС:** Windows 10/11, macOS, Linux (x64).
-- **Браузер:** любой современный (Chrome, Firefox, Edge и т.д.) для открытия дашборда.
-- **Сеть:** доступ к Kick.com и к серверу активации лицензии (интернет).
-- **Со стороны пользователя не требуется:** установка Go, Python, Node.js или исходного кода.
-
-Пользователю нужны только исполняемый файл (и при необходимости вьюербот), файл `.env` с данными своего OAuth-приложения Kick и лицензионный ключ.
+- several Kick accounts in one window
+- live chat and stream player for a chosen channel slug
+- one-click presets and timed auto-send
+- per-account SOCKS5 proxies
+- optional license gate for distributed builds
+- optional viewer-boost binary next to the main app
 
 ---
 
-## Как получить
+## Features
 
-Софт распространяется по лицензии. Чтобы получить сборку и ключ:
-
-1. Сайт [saturx.store](https://saturx.store) или Telegram-бот [**@saturx_bot**](https://t.me/saturx_bot) (тарифы, оплата, ключ в чате). Либо контакт автора/продавца в описании репозитория или на странице релизов.
-2. После оплаты вы получите:
-   - архив с **SaturX** (exe или бинарник под вашу ОС);
-   - при необходимости — **viewerbot** (exe/бинарник);
-   - **лицензионный ключ** для активации.
-3. Дальнейшие шаги — в **[USER-GUIDE.md](USER-GUIDE.md)** (настройка `.env`, OAuth на developers.kick.com, первый запуск, ввод ключа, работа с дашбордом).
-
-В репозитории могут быть исходный код и скрипты сборки — они для разработчика/продавца. Покупателю для работы достаточно только выданных файлов и инструкции из USER-GUIDE.md.
-
----
-
-## Быстрый старт (после получения файлов)
-
-1. Создать OAuth-приложение на [developers.kick.com](https://developers.kick.com/) (Redirect URL: `http://localhost:8080/oauth/callback` или тот же порт, что и дашборд; scope chat:write).
-2. В папке с программой создать файл `.env` с полями: `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET`, `CHANNEL_SLUG`.
-3. Запустить `SaturX.exe` (или `./saturx`).
-4. Открыть в браузере http://localhost:8080 → ввести лицензионный ключ → добавить аккаунт(ы) и пользоваться дашбордом.
-
-Подробности — в **[USER-GUIDE.md](USER-GUIDE.md)**.
+| Area | What you get |
+|------|----------------|
+| Accounts | OAuth add/switch, display names, SOCKS5 per account |
+| Dashboard | Chat, stream embed, account list, send bar |
+| Chat tools | Presets from `messages.txt`, Kick emotes, replies |
+| Auto sender | Messages from `auto-sender.txt` with delay range and account rotation |
+| License | Optional key activation, device binding, refresh/revoke |
+| Viewer tools | Optional `viewerbot` binary started from the same UI |
+| Ops | License server (Postgres + Redis), Telegram sales bot, marketing landing |
 
 ---
 
-## Лицензия и поддержка
+## Repository layout
 
-- Использование программы регулируется условиями, под которыми вы получили сборку и ключ.
-- Вопросы по установке и настройке — по инструкции [USER-GUIDE.md](USER-GUIDE.md).
-- Проблемы с лицензией, продлением или доступом — через контакт продавца/поддержки.
+```text
+.
+├── main.go / web.go / accounts.go   # desktop app + dashboard API
+├── static/                          # embedded UI (HTML/CSS/JS, emotes)
+├── internal/                        # runners, HTTP client, license store, viewerbot launcher
+├── license-server/                  # key issue / activate / revoke API + admin UI
+├── telegram-sales-bot/              # Crypto Pay checkout → license keys
+├── landing/                         # Next.js marketing site
+├── scripts/                         # release and local test helpers
+└── USER-GUIDE.md                    # end-user setup
+```
+
+```mermaid
+flowchart LR
+  subgraph desktop [Desktop]
+    App[SaturX]
+    UI[Browser localhost]
+    App --> UI
+  end
+  subgraph kick [Kick]
+    OAuth[OAuth]
+    ChatAPI[Public chat API]
+  end
+  subgraph optional [Optional]
+    Lic[License server]
+    Bot[Telegram bot]
+  end
+  App --> OAuth
+  App --> ChatAPI
+  App -.-> Lic
+  Bot -.-> Lic
+```
 
 ---
 
-## Для разработчиков
+## Quick start (development)
 
-- Сборка бинарника с подстановкой URL/HMAC сервера лицензий: см. **LAUNCH.md** и скрипты в `scripts/` (`build-release.ps1`, `build-release.sh`).
-- Запуск License Server и SaturX в связке: **LAUNCH.md**.
-- Текущая реализация: Go, [kick-go-sdk](https://github.com/henrikah/kick-go-sdk), встроенный веб-дашборд; лицензии — отдельный сервер (Postgres, Redis, JWT/HMAC).
+**Requirements:** Go 1.24+, a Kick app at [developers.kick.com](https://developers.kick.com/).
+
+1. Create an OAuth application. Redirect URL:
+
+   `http://localhost:8080/oauth/callback`
+
+   Scopes: `chat:write`, `channel:read`.
+
+2. Copy the env template and fill in placeholders (never commit real secrets):
+
+```bash
+cp .env.example .env
+```
+
+```env
+KICK_CLIENT_ID=your_client_id
+KICK_CLIENT_SECRET=your_client_secret
+CHANNEL_SLUG=your_channel
+```
+
+3. Run:
+
+```bash
+go test ./...
+go run .
+```
+
+4. Open [http://localhost:8080](http://localhost:8080), add an account, send a message.
+
+Local run without a license server:
+
+```env
+SKIP_LICENSE=1
+```
+
+Do not use `SKIP_LICENSE` in builds you ship to other people.
+
+---
+
+## Building a release
+
+Windows:
+
+```powershell
+.\scripts\build-release.ps1
+```
+
+macOS / Linux:
+
+```bash
+./scripts/build-release.sh
+```
+
+The scripts read `LICENSE_SERVER_URL` and `LICENSE_HMAC_SECRET` from `.env` and embed them into the binary. End users only need Kick OAuth fields.
+
+Details: [LAUNCH.md](LAUNCH.md).
+
+---
+
+## Optional services
+
+| Component | Docs |
+|-----------|------|
+| License server | [license-server/README.md](license-server/README.md) |
+| Telegram sales bot | [telegram-sales-bot/README.md](telegram-sales-bot/README.md) |
+| Landing | [landing/README.md](landing/README.md) |
+| Feature notes | [FEATURES.md](FEATURES.md) |
+
+---
+
+## Configuration files (local, gitignored)
+
+| File | Purpose |
+|------|---------|
+| `.env` | OAuth client, channel slug, optional ports |
+| `.kick_accounts.json` | Linked accounts and proxies |
+| `.kick_proxies` | Optional proxy list (one line per account) |
+| `.kick_license.dat` | Cached license payload on this machine |
+| `messages.txt` | Dashboard preset lines |
+| `auto-sender.txt` | Auto-sender lines |
+
+---
+
+## Disclaimer
+
+You are responsible for how you use this software. Follow Kick’s terms of service, platform rules, and the law in your country. Viewer tools and multi-account chat can violate a platform’s rules if misused. The authors provide the code as-is under MIT and are not liable for bans, account loss, or other damage.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Keep examples generic and never commit secrets.
+
+## License
+
+[MIT](LICENSE) © 2026 Santoridev

@@ -97,19 +97,19 @@ func (r *AccountRunner) runOne(task SendTask) {
 	cancel()
 
 	r.acquireGlobal()
-	result := r.sendFunc(r.ID, task.Message)
+	result := r.sendFunc(r.ID, task)
 	r.releaseGlobal()
 
 	now = time.Now()
-	next := r.applyResult(st, task.Message, result, now)
+	next := r.applyResult(st, task, result, now)
 	r.setState(next)
 }
 
-func (r *AccountRunner) applyResult(prev AccountState, message string, res SendResult, now time.Time) *AccountState {
+func (r *AccountRunner) applyResult(prev AccountState, task SendTask, res SendResult, now time.Time) *AccountState {
 	next := &AccountState{
 		LastSendTime:    now,
 		QueueSize:       len(r.Queue),
-		LastMessageHash: HashMessage(message),
+		LastMessageHash: HashMessage(task.Message),
 		SentTotal:       prev.SentTotal,
 		FailedTotal:     prev.FailedTotal,
 	}

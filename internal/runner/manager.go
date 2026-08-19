@@ -42,7 +42,7 @@ func (m *AccountManager) EnsureRunner(accountID int) *AccountRunner {
 	release := func() { <-m.globalSem }
 	sendFunc := m.doSend
 	if sendFunc == nil {
-		sendFunc = func(int, string) SendResult { return SendResult{} }
+		sendFunc = func(int, SendTask) SendResult { return SendResult{} }
 	}
 	r := NewAccountRunner(accountID, sendFunc, acquire, release)
 	m.runners[accountID] = r
@@ -60,20 +60,28 @@ func (m *AccountManager) GetRunner(accountID int) *AccountRunner {
 // Send валидирует сообщение, находит runner и ставит задачу в очередь. Бизнес-логика здесь, не в HTTP.
 // Возвращает (enqueued, reason).
 func (m *AccountManager) Send(accountID int, message string) (ok bool, reason string) {
+	return m.SendTask(accountID, SendTask{Message: message})
+}
+
+func (m *AccountManager) SendTask(accountID int, task SendTask) (ok bool, reason string) {
 	r := m.GetRunner(accountID)
 	if r == nil {
 		r = m.EnsureRunner(accountID)
 	}
 	st := r.State()
-	ok, reason = ValidateMessage(message, st.LastMessageHash)
+	lastHash := st.LastMessageHash
+	if task.AllowDuplicate || task.ReplyToMessageID != "" {
+		lastHash = ""
+	}
+	ok, reason = ValidateMessage(task.Message, lastHash)
 	if !ok {
 		return false, reason
 	}
-	enqueued := r.Enqueue(SendTask{Message: message})
+	enqueued := r.Enqueue(task)
 	if !enqueued {
 		return false, "queue_full"
 	}
-	log.Printf("[manager] account %d enqueued message hash=%s", accountID, HashMessage(message))
+	log.Printf("[manager] account %d enqueued message hash=%s reply_to=%t", accountID, HashMessage(task.Message), task.ReplyToMessageID != "")
 	return true, ""
 }
 

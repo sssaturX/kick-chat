@@ -9,7 +9,7 @@ import (
 func TestAccountRunner_EnqueueAndSend(t *testing.T) {
 	var sent int32
 	sem := make(chan struct{}, 2)
-	sendFunc := func(accountID int, message string) SendResult {
+	sendFunc := func(accountID int, task SendTask) SendResult {
 		atomic.AddInt32(&sent, 1)
 		return SendResult{}
 	}
@@ -46,10 +46,10 @@ func TestAccountRunner_EnqueueAndSend(t *testing.T) {
 
 func TestValidateMessage(t *testing.T) {
 	tests := []struct {
-		msg     string
+		msg      string
 		lastHash string
-		wantOk  bool
-		reason  string
+		wantOk   bool
+		reason   string
 	}{
 		{"", "", false, "empty"},
 		{"   ", "", false, "empty"},
@@ -70,7 +70,7 @@ func TestValidateMessage(t *testing.T) {
 }
 
 func TestManager_Send_Validation(t *testing.T) {
-	sendFunc := func(accountID int, message string) SendResult { return SendResult{} }
+	sendFunc := func(accountID int, task SendTask) SendResult { return SendResult{} }
 	m := NewAccountManager(sendFunc)
 	m.EnsureRunner(1)
 
@@ -85,5 +85,18 @@ func TestManager_Send_Validation(t *testing.T) {
 	ok, reason := m.Send(1, "hello")
 	if !ok && reason != "queue_full" {
 		t.Logf("Send(hello) ok=%v reason=%q", ok, reason)
+	}
+}
+
+func TestManager_SendTask_AllowsReplyDuplicate(t *testing.T) {
+	sendFunc := func(accountID int, task SendTask) SendResult { return SendResult{} }
+	m := NewAccountManager(sendFunc)
+	r := m.EnsureRunner(1)
+	defer r.Stop()
+	r.setState(&AccountState{State: StateOnline, LastMessageHash: HashMessage("hello")})
+
+	ok, reason := m.SendTask(1, SendTask{Message: "hello", ReplyToMessageID: "abc"})
+	if !ok {
+		t.Fatalf("reply duplicate should enqueue, reason=%q", reason)
 	}
 }

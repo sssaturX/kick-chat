@@ -76,6 +76,22 @@ if [[ $BUILD_WINDOWS -eq 0 ]]; then
   else
     echo "Предупреждение: viewerbot не найден — собери: cd test_view/kick-viewbot && ./build-viewerbot.sh" >&2
   fi
+
+  cat > "$USER_PACKAGE/run-saturx.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+
+if [[ ! -x "./SaturX" ]]; then
+  chmod +x "./SaturX" 2>/dev/null || true
+fi
+
+exec "./SaturX"
+EOF
+  chmod +x "$USER_PACKAGE/run-saturx.sh"
+  echo "Created run-saturx.sh"
 fi
 
 # Same copy list as build-release.ps1

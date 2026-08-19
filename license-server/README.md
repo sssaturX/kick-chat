@@ -1,135 +1,107 @@
 # License Server
 
-Production-ready License Server для desktop-приложения (Go 1.22+, Gin, PostgreSQL, GORM, Redis).
+Production-ready license server for the desktop app (Go 1.22+, Gin, PostgreSQL, GORM, Redis).
 
 ---
 
-## Как это работает (общая схема)
+## How it works
 
-### Кто что хостит
+### What you host
 
-- **Ты** поднимаешь **один** License Server в интернете (VPS, облако и т.п.). На нём крутятся приложение, PostgreSQL и Redis. Пользователи к нему **не заходят** вручную — к нему обращается только **твоё desktop-приложение** по API.
-- **Пользователь** ставит твоё desktop-приложение (exe/app). Оно при запуске и периодически дергает **твой** License Server по HTTPS (например `https://license.твой-домен.com`).
+- **You** run **one** License Server on the internet (VPS, cloud, etc.) with the app, PostgreSQL, and Redis. Users do not open it by hand — **SaturX** calls it over HTTPS.
+- **The user** installs the desktop app. On start (and periodically) it calls **your** License Server (for example `https://license.example.com`).
 
-То есть: **хостить нужно только License Server**. Его ты и деплоишь так же, как любой бэкенд (Docker на VPS, или просто бинарь + Postgres + Redis). Kick Chat и прочие твои сервисы могут жить отдельно; с лицензиями они не связаны.
+You only need to host the License Server. SaturX and other services can live elsewhere.
 
-### Как идёт проверка у пользователя
+### Checks on the user machine
 
-1. **Первый запуск (активация)**  
-   Пользователь вводит ключ (например `XXXX-XXXX-XXXX`) в твоём приложении.  
-   Приложение отправляет на твой сервер:
-   - **POST /activate**  
-   - Тело: `license_key`, `hwid` (идентификатор машины, опционально).  
+1. **First launch (activate)**  
+   The user pastes a key in the app. The app sends **POST /activate** with `license_key` and optional `hwid`.  
+   The server checks the key exists, status is `active`, it is not expired, and activation limits / HWID match.  
+   The app stores the key, `expires_at`, and HMAC signature locally.
 
-   Сервер проверяет:
-   - ключ есть в БД;
-   - статус `active`;
-   - не истёк (`expires_at > now`);
-   - лимит активаций не превышен (и при привязке к `hwid` — совпадает ли машина).
+2. **Later launches**  
+   Local expiry can allow a start, then **POST /validate** runs in the background. Status is `active` | `expired` | `revoked` | `invalid`. Expired/revoked keys lock the app.
 
-   В ответ приходит, в частности, `expires_at` и подпись (HMAC).  
-   Приложение **сохраняет у себя** (локально, в настройках/реестре):
-   - сам ключ (или только факт успешной активации);
-   - `expires_at`;
-   - при желании — подпись для проверки.
+3. **Offline**  
+   A short grace window based on the last successful check is reasonable; then require a successful **POST /validate**.
 
-2. **Дальнейшие запуски и периодическая проверка**  
-   - При каждом запуске приложение может:
-     - сначала проверить **локально**: если сохранённый `expires_at` ещё в будущем — разрешить работу;
-     - затем в фоне (или раз в 12–24 часа) вызывать **POST /validate** с `license_key` и `hwid`.  
-   - Сервер отвечает полем **status**: `active` | `expired` | `revoked` | `invalid`.  
-   - Если пришло `expired` или `revoked` — приложение **блокирует** доступ (показывает сообщение, закрывает функции и т.д.).
-
-3. **Если у пользователя нет интернета**  
-   Разумная политика: разрешить работу ещё **небольшой срок** (например 48 часов), опираясь на последний успешный ответ сервера или локальный `expires_at`. После этого — блокировать до появления сети и успешного **POST /validate**.
-
-4. **Что делаешь ты (админ)**  
-   - **Создаёшь ключи** — через форму на `http://твой-сервер:8000` (POST /admin/licenses) или скрипт/Postgres.  
-   - **Продлеваешь** — POST /admin/activate с новым `expires_at`.  
-   - **Отзываешь ключ** — POST /admin/revoke. После этого при следующей проверке (**POST /validate**) пользователь получит `revoked` и приложение должно заблокировать доступ.
-
-Итого: **лицензия проверяется так**: приложение дергает твой хостированный License Server (activate один раз, validate периодически), смотрит на ответ и решает — пускать пользователя или нет. Хостить нужно только этот сервер; проверка у пользователя — это запросы с его машины к твоему API.
+4. **Admin**  
+   Create keys (`POST /admin/licenses`), extend (`POST /admin/activate`), revoke (`POST /admin/revoke`).
 
 ---
 
-## Требования
+## Requirements
 
 - Go 1.22+
 - PostgreSQL
 - Redis
 
-## Конфигурация
+## Configuration
 
-Скопируй `.env.example` в `.env` и задай:
+Copy `.env.example` to `.env` and set:
 
-- `DATABASE_URL` — подключение к Postgres
-- `REDIS_URL` — подключение к Redis (по умолчанию `redis://localhost:6379/0`)
-- `HMAC_SECRET` — секрет для подписи ответов (минимум 32 символа)
-- `ADMIN_API_KEY` — ключ для admin-эндпоинтов (заголовок `X-Admin-API-Key`) и входа в `/admin/login`
-- опционально `ADMIN_SESSION_TTL` (например `24h`), `ADMIN_COOKIE_SECURE` (`true` за reverse proxy с HTTPS)
+- `DATABASE_URL` — Postgres
+- `REDIS_URL` — Redis (default `redis://localhost:6379/0`)
+- `HMAC_SECRET` — response signing secret (at least 32 characters)
+- `ADMIN_API_KEY` — admin API and `/admin/login`
+- optional `ADMIN_SESSION_TTL` (e.g. `24h`), `ADMIN_COOKIE_SECURE` (`true` behind HTTPS)
 
-## Запуск локально
+## Run locally
 
 ```bash
-# Postgres и Redis должны быть запущены
+# Postgres and Redis must be running
 go run ./cmd/server
 ```
 
-Сервер слушает порт из `PORT` (по умолчанию 8000). В браузере: **`/`** → редирект на **дашборд** (`/admin/dashboard`); страница ручного теста API — **`/dev`** (health, activate, validate, админ-запросы, логи).
+Port comes from `PORT` (default 8000). `/` redirects to `/admin/dashboard`. Manual API test page: `/dev`.
 
-## Админ-панель (веб)
+## Admin UI
 
-- **`GET /admin/login`** — форма входа по **Admin API Key** (тот же, что `ADMIN_API_KEY`).
-- После входа выдаётся **HttpOnly**-cookie `admin_session`, сессия хранится в **Redis** (TTL задаётся `ADMIN_SESSION_TTL`, по умолчанию 24h).
-- **`GET /admin/dashboard`** — таблица всех ключей, создание, продление, отзыв, удаление.
-- **`POST /admin/api/session/login`** — JSON `{"api_key":"..."}` (лимит попыток с одного IP).
-- **`POST /admin/api/session/logout`** — выход (нужна сессия или заголовок `X-Admin-API-Key`).
-- **`GET /admin/api/licenses`** — JSON со списком лицензий.
-- **`POST /admin/delete`** — JSON `{"license_key":"..."}` — безвозвратное удаление строки и активаций.
+- `GET /admin/login` — Admin API Key form
+- HttpOnly cookie `admin_session` in Redis (`ADMIN_SESSION_TTL`, default 24h)
+- `GET /admin/dashboard` — list, create, extend, revoke, delete
+- `POST /admin/api/session/login` — JSON `{"api_key":"..."}`
+- `POST /admin/api/session/logout`
+- `GET /admin/api/licenses`
+- `POST /admin/delete` — JSON `{"license_key":"..."}`
 
-Все **`/admin/*`** (кроме `GET /admin/login` и `POST /admin/api/session/login`) принимают либо **cookie сессии**, либо заголовок **`X-Admin-API-Key`** (для скриптов и страницы теста API). Передача ключа в query string **не поддерживается**.
-
-За HTTPS на проде включите **`ADMIN_COOKIE_SECURE=true`**.
+All `/admin/*` except login accept a **session cookie** or **`X-Admin-API-Key`**. Query-string keys are not supported. Set **`ADMIN_COOKIE_SECURE=true`** in production HTTPS.
 
 ## Docker
 
-Полный чеклист передеплоя на VPS (бэкап БД, сборка, HTTPS, портал скачивания): **[DEPLOY-VPS.md](./DEPLOY-VPS.md)**.
+VPS checklist (DB backup, build, HTTPS, download portal): **[DEPLOY-VPS.md](./DEPLOY-VPS.md)**.
 
 ```bash
 docker-compose up -d
 ```
 
-Приложение будет на порту 8000, Postgres на 5434 (хост), Redis на 6379.
+App on 8000, Postgres on host 5434, Redis on 6379.
 
-**Не открывается http://localhost:8000?** Проверь логи приложения: `docker-compose logs app`. Если контейнер падает (нет в `docker ps`), смотри вывод — часто это ошибка подключения к БД или отсутствующий `HMAC_SECRET`/`ADMIN_API_KEY`. Убедись, что в каталоге с `docker-compose.yml` есть `.env` с нужными переменными или что дефолты в compose подходят. Затем снова запусти: `docker-compose up -d` и открой в браузере **http://127.0.0.1:8000** (или http://localhost:8000).
+If http://localhost:8000 does not open, check `docker-compose logs app`. Typical causes: DB connection, missing `HMAC_SECRET` / `ADMIN_API_KEY`. Keep a `.env` next to `docker-compose.yml`.
 
-## Портал скачивания (опционально)
+## Download portal (optional)
 
-Если заданы **`DOWNLOAD_FILE_PATH`** и **`DOWNLOAD_FILE_NAME`** в `.env`:
+If `DOWNLOAD_FILE_PATH` and `DOWNLOAD_FILE_NAME` are set:
 
-- **`GET /download`** — страница: пользователь вводит **license key**, после проверки получает **одноразовую** ссылку на файл.
-- **`POST /download/verify`** — JSON `{"license_key":"..."}`; при статусе `active` ответ содержит `download_path` (относительный URL).
-- **`GET /download/file?token=...`** — отдаёт архив; токен удаляется из Redis после использования (TTL несколько минут).
+- `GET /download` — user enters a license key, gets a one-time file link
+- `POST /download/verify` — JSON `{"license_key":"..."}`
+- `GET /download/file?token=...` — serves the archive; Redis token is one-time
 
-Проверка ключа — та же логика, что **`POST /validate`** (пустой `hwid`). Старые ключи с привязанным **HWID** в БД через портал могут не пройти — тогда продлевать/выдавать через бота.
-
-Проксируй субдомен (например `software.saturx.store`) на этот сервис; в Telegram-боте в **`SOFTWARE_DOWNLOAD_URL`** укажи `https://software.saturx.store/download`.
-
-Файл для раздачи клади в каталог **`releases/`** рядом с `docker-compose` (см. **`releases/README.md`**): в Compose он монтируется в контейнер как `/data/releases`.
+Key check uses the same logic as **POST /validate** (empty `hwid`). Point `SOFTWARE_DOWNLOAD_URL` at `https://software.example.com/download`. Put files in **`releases/`** next to compose.
 
 ## API
 
-- **POST /activate** — активация ключа (license_key, hwid). Ответ: status, expires_at, server_time, signature (HMAC).
-- **POST /validate** — проверка ключа. Ответ: status (active | expired | revoked | invalid).
-- **POST /admin/revoke** — отзыв ключа (тело: license_key). Заголовок: `X-Admin-API-Key`.
-- **POST /admin/activate** — включение ключа и продление (license_key, expires_at). Заголовок: `X-Admin-API-Key`.
-- **POST /admin/licenses** — создание ключа. Тело: `license_key`, `expires_at` (RFC3339), `max_activations` (опционально, по умолчанию 1). Заголовок: `X-Admin-API-Key`. Ответ: id, license_key, expires_at, max_activations.
-- **GET /admin/api/licenses** — список всех лицензий (JSON). Аутентификация: `X-Admin-API-Key` или сессия после `/admin/login`.
-- **POST /admin/delete** — удаление ключа и активаций (тело: `license_key`). Аутентификация как выше.
-- **GET /health** — проверка работы сервера.
-- **GET /download**, **POST /download/verify**, **GET /download/file** — см. раздел «Портал скачивания» (если настроен `DOWNLOAD_FILE_PATH`).
+- **POST /activate** — activate (`license_key`, `hwid`)
+- **POST /validate** — status: active | expired | revoked | invalid
+- **POST /admin/revoke** — body: `license_key`
+- **POST /admin/activate** — enable / extend (`license_key`, `expires_at`)
+- **POST /admin/licenses** — create (`license_key`, `expires_at`, optional `max_activations`)
+- **GET /admin/api/licenses** — list
+- **POST /admin/delete** — delete key and activations
+- **GET /health**
 
-## Создание ключа (пример)
+## Create a key (SQL example)
 
 ```sql
 INSERT INTO licenses (id, license_key, status, expires_at, max_activations)
@@ -142,4 +114,4 @@ VALUES (
 );
 ```
 
-Миграции таблицы `licenses` выполняются автоматически при старте (GORM AutoMigrate).
+`licenses` is migrated on start (GORM AutoMigrate).

@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -35,9 +36,11 @@ import (
 
 // Значения по умолчанию для лицензии — задаются при сборке через -ldflags.
 // Юзеру не нужно прописывать LICENSE_SERVER_URL и LICENSE_HMAC_SECRET в .env.
+// defaultAdminRelease=1 — отдельная админ-сборка (scripts/build-release-admin.*), лицензия отключена.
 var (
 	defaultLicenseServerURL  string
 	defaultLicenseHMACSecret string
+	defaultAdminRelease      string
 )
 
 func apiClientWithProxy(proxyStr string) *http.Client {
@@ -63,26 +66,150 @@ func statusCodeFromError(err error) int {
 }
 
 var httpFactory *httpclient.Factory
+var channelSlugValue = regexp.MustCompile(`^[A-Za-z0-9_-]{2,64}$`)
 
-// Известные короткие коды официальных эмодзи Kick. API иногда отображает их как анимацию только без двоеточий.
-var kickEmojiShortcodes = []string{
-	"emojiCheerful", "emojiAngry", "emojiBlowKiss", "emojiAstonished", "emojiAngel",
-	"emojiAwake", "emojiBubbly", "emojiClown", "emojiCool", "emojiCrave",
+const broadcasterResolveTimeout = 5 * time.Second
+
+func normalizeChannelSlugInput(input string) (string, error) {
+	s := strings.TrimSpace(input)
+	if s == "" {
+		return "", errors.New("channel_slug required")
+	}
+	if u, err := url.Parse(s); err == nil && u.Host != "" {
+		s = strings.Trim(strings.TrimPrefix(u.Path, "/"), "/")
+		if i := strings.Index(s, "/"); i >= 0 {
+			s = s[:i]
+		}
+	}
+	s = strings.TrimPrefix(strings.TrimSpace(s), "@")
+	s = strings.Trim(s, "/")
+	if i := strings.IndexAny(s, "?#"); i >= 0 {
+		s = s[:i]
+	}
+	if !channelSlugValue.MatchString(s) {
+		return "", errors.New("channel_slug must be 2-64 chars: letters, numbers, _ or -")
+	}
+	return s, nil
 }
 
-// normalizeKickEmojiContent заменяет :shortcode: на shortcode для известных эмодзи — так API Kick может распознать их как эмодзи.
+// Known Kick emote buttons and their native chat tokens.
+type kickEmojiDef struct {
+	ID    string `json:"id,omitempty"`
+	Name  string `json:"name"`
+	Text  string `json:"text,omitempty"`
+	Image string `json:"image,omitempty"`
+}
+
+var kickEmojiShortcodes = []kickEmojiDef{
+	{ID: "37226", Name: "KEKW"},
+	{ID: "37231", Name: "PatrickBoo"},
+	{ID: "37236", Name: "ThisIsFine"},
+	{ID: "37244", Name: "modCheck"},
+	{ID: "39273", Name: "MuteD"},
+	{ID: "37239", Name: "WeSmart"},
+	{ID: "37233", Name: "PogU"},
+	{ID: "37227", Name: "LULW"},
+	{ID: "37218", Name: "Clap"},
+	{ID: "37224", Name: "GIGACHAD"},
+}
+
+var kickNativeEmoteToken = regexp.MustCompile(`^\[emote:(\d+):([^\]]+)\]$`)
+
+func digitsOnly(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func normalizeKickEmojiDefs(defs []kickEmojiDef) []kickEmojiDef {
+	out := make([]kickEmojiDef, 0, len(defs))
+	for _, def := range defs {
+		def.ID = digitsOnly(strings.TrimSpace(def.ID))
+		def.Name = strings.TrimSpace(def.Name)
+		def.Text = strings.TrimSpace(def.Text)
+		def.Image = strings.TrimSpace(def.Image)
+		if def.Text != "" && (def.ID == "" || def.Name == "") {
+			if m := kickNativeEmoteToken.FindStringSubmatch(def.Text); len(m) == 3 {
+				if def.ID == "" {
+					def.ID = m[1]
+				}
+				if def.Name == "" {
+					def.Name = m[2]
+				}
+			}
+		}
+		if def.Name == "" {
+			continue
+		}
+		if def.Text == "" && def.ID != "" {
+			def.Text = fmt.Sprintf("[emote:%s:%s]", def.ID, def.Name)
+		}
+		if def.Image == "" && def.ID != "" {
+			def.Image = "https://files.kick.com/emotes/" + def.ID + "/fullsize"
+		}
+		out = append(out, def)
+	}
+	return out
+}
+
+func loadKickEmojiConfig(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		kickEmojiShortcodes = normalizeKickEmojiDefs(kickEmojiShortcodes)
+		return
+	}
+	var wrapper struct {
+		Emotes []kickEmojiDef `json:"emotes"`
+	}
+	if err := json.Unmarshal(data, &wrapper); err == nil && len(wrapper.Emotes) > 0 {
+		if defs := normalizeKickEmojiDefs(wrapper.Emotes); len(defs) > 0 {
+			kickEmojiShortcodes = defs
+			return
+		}
+	}
+	var defs []kickEmojiDef
+	if err := json.Unmarshal(data, &defs); err == nil {
+		if normalized := normalizeKickEmojiDefs(defs); len(normalized) > 0 {
+			kickEmojiShortcodes = normalized
+			return
+		}
+	}
+	kickEmojiShortcodes = normalizeKickEmojiDefs(kickEmojiShortcodes)
+}
+
+func kickEmojiDefinitions() []kickEmojiDef {
+	defs := normalizeKickEmojiDefs(kickEmojiShortcodes)
+	out := make([]kickEmojiDef, len(defs))
+	copy(out, defs)
+	return out
+}
+
+// normalizeKickEmojiContent keeps Kick emotes in Kick's native token form.
 func normalizeKickEmojiContent(content string) string {
 	s := strings.TrimSpace(content)
-	if len(s) < 3 || s[0] != ':' || s[len(s)-1] != ':' {
-		return content
-	}
-	inner := s[1 : len(s)-1]
-	for _, name := range kickEmojiShortcodes {
-		if inner == name {
-			return inner
+	for _, emoji := range kickEmojiDefinitions() {
+		if s == emoji.Name || s == ":"+emoji.Name+":" || s == emoji.Text {
+			return emoji.Text
 		}
 	}
 	return content
+}
+
+func isKnownKickEmojiContent(content string) bool {
+	s := strings.TrimSpace(content)
+	if len(s) >= 3 && s[0] == ':' && s[len(s)-1] == ':' {
+		s = s[1 : len(s)-1]
+	}
+	for _, emoji := range kickEmojiDefinitions() {
+		if s == emoji.Name || s == emoji.Text {
+			return true
+		}
+	}
+	return false
 }
 
 const kickTokenURL = "https://id.kick.com/oauth/token"
@@ -110,6 +237,32 @@ func mergeKickEnvIntoDotenv(clientID, clientSecret, channelSlug string) error {
 	out = append(out, "KICK_CLIENT_ID="+clientID)
 	out = append(out, "KICK_CLIENT_SECRET="+clientSecret)
 	out = append(out, "CHANNEL_SLUG="+channelSlug)
+	return os.WriteFile(envPath, []byte(strings.Join(out, "\n")), 0644)
+}
+
+func writeChannelSlugToDotenv(channelSlug string) error {
+	envPath := ".env"
+	data, _ := os.ReadFile(envPath)
+	text := strings.ReplaceAll(string(data), "\r\n", "\n")
+	lines := strings.Split(text, "\n")
+	out := make([]string, 0, len(lines)+2)
+	wrote := false
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "CHANNEL_SLUG=") {
+			if !wrote {
+				out = append(out, "CHANNEL_SLUG="+channelSlug)
+				wrote = true
+			}
+			continue
+		}
+		out = append(out, line)
+	}
+	if !wrote {
+		for len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+			out = out[:len(out)-1]
+		}
+		out = append(out, "", "# Optional: channel slug for chat", "CHANNEL_SLUG="+channelSlug)
+	}
 	return os.WriteFile(envPath, []byte(strings.Join(out, "\n")), 0644)
 }
 
@@ -240,9 +393,46 @@ func refreshAccessToken(ctx context.Context, clientID, clientSecret, refreshToke
 	return data.AccessToken, data.RefreshToken, nil
 }
 
+func resolveBroadcasterUserID(ctx context.Context, factory *httpclient.Factory, channelSlug, token, proxyStr string) int {
+	if strings.TrimSpace(channelSlug) == "" || strings.TrimSpace(token) == "" {
+		return 0
+	}
+	try := func(proxyKey string) (int, error) {
+		client := http.DefaultClient
+		if factory != nil {
+			if c := factory.Get(proxyKey); c != nil {
+				client = c
+			}
+		}
+		api, err := kick.NewAPIClient(kickapitypes.APIClientConfig{HTTPClient: client})
+		if err != nil {
+			return 0, err
+		}
+		resolveCtx, cancel := context.WithTimeout(ctx, broadcasterResolveTimeout)
+		defer cancel()
+		channels, err := api.Channel().GetChannelsByBroadcasterSlug(resolveCtx, token, []string{channelSlug})
+		if err != nil {
+			return 0, err
+		}
+		if len(channels.Data) == 0 {
+			return 0, nil
+		}
+		return channels.Data[0].BroadcasterUserID, nil
+	}
+	id, err := try(proxyStr)
+	if err != nil && proxyStr != "" && isNetworkOrProxyError(err) {
+		id, _ = try("")
+	}
+	return id
+}
+
 // makeSendFunc возвращает runner.SendFunc. При 401 вызывает refreshFunc (если есть) и один раз повторяет отправку.
-func makeSendFunc(store *accountsStore, factory *httpclient.Factory, ctx context.Context, channelSlug string, getBID func() int, refreshFunc func(accountID int) (newAccessToken string, err error)) runner.SendFunc {
-	return func(accountID int, message string) runner.SendResult {
+func makeSendFunc(store *accountsStore, factory *httpclient.Factory, ctx context.Context, getChannelSlug func() string, getBID func() int, setBID func(int), refreshFunc func(accountID int) (newAccessToken string, err error)) runner.SendFunc {
+	return func(accountID int, task runner.SendTask) runner.SendResult {
+		channelSlug := strings.TrimSpace(getChannelSlug())
+		if channelSlug == "" {
+			return runner.SendResult{Err: errors.New("channel not configured"), StatusCode: 400}
+		}
 		tok, _, proxy, _, ok := store.GetAccountByIndex(accountID)
 		if !ok {
 			return runner.SendResult{Err: errors.New("account not found")}
@@ -257,20 +447,31 @@ func makeSendFunc(store *accountsStore, factory *httpclient.Factory, ctx context
 		}
 		bid := getBID()
 		if bid == 0 {
+			bid = resolveBroadcasterUserID(ctx, factory, channelSlug, tok, proxy)
+			if bid != 0 && setBID != nil {
+				setBID(bid)
+			}
+		}
+		if bid == 0 {
 			return runner.SendResult{Err: errors.New("channel not resolved"), StatusCode: 503}
 		}
-		// Чтобы API Kick отображал эмодзи как анимации, отправляем shortcode без двоеточий (emojiCheerful вместо :emojiCheerful:).
-		content := normalizeKickEmojiContent(message)
+		// The Send Chat API accepts text content only, so do not send raw Kick shortcode names.
+		content := normalizeKickEmojiContent(task.Message)
+		replyTo := strings.TrimSpace(task.ReplyToMessageID)
+		var replyToPtr *string
+		if replyTo != "" {
+			replyToPtr = &replyTo
+		}
 		// Короткий таймаут для отправки: при зависшем прокси не ждём 30 сек, быстро переходим на прямое соединение.
 		sendCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 		start := time.Now()
-		_, err = api.Chat().SendChatMessageAsUser(sendCtx, tok, bid, nil, content)
+		_, err = api.Chat().SendChatMessageAsUser(sendCtx, tok, bid, replyToPtr, content)
 		if err != nil && proxy != "" && isNetworkOrProxyError(err) {
 			cancel()
 			sendCtx, cancel = context.WithTimeout(ctx, 8*time.Second)
 			api, _ = kick.NewAPIClient(kickapitypes.APIClientConfig{HTTPClient: factory.Get("")})
 			if api != nil {
-				_, err = api.Chat().SendChatMessageAsUser(sendCtx, tok, bid, nil, content)
+				_, err = api.Chat().SendChatMessageAsUser(sendCtx, tok, bid, replyToPtr, content)
 			}
 		}
 		// При 401 пробуем обновить токен и повторить один раз
@@ -280,11 +481,11 @@ func makeSendFunc(store *accountsStore, factory *httpclient.Factory, ctx context
 				tok = newTok
 				cancel()
 				sendCtx, cancel = context.WithTimeout(ctx, 8*time.Second)
-				_, err = api.Chat().SendChatMessageAsUser(sendCtx, tok, bid, nil, content)
+				_, err = api.Chat().SendChatMessageAsUser(sendCtx, tok, bid, replyToPtr, content)
 				if err != nil && proxy != "" && isNetworkOrProxyError(err) {
 					api, _ = kick.NewAPIClient(kickapitypes.APIClientConfig{HTTPClient: factory.Get("")})
 					if api != nil {
-						_, err = api.Chat().SendChatMessageAsUser(sendCtx, tok, bid, nil, content)
+						_, err = api.Chat().SendChatMessageAsUser(sendCtx, tok, bid, replyToPtr, content)
 					}
 				}
 			}
@@ -304,6 +505,7 @@ func makeSendFunc(store *accountsStore, factory *httpclient.Factory, ctx context
 
 func main() {
 	_ = godotenv.Load()
+	loadKickEmojiConfig("kick-emotes.json")
 
 	// Логи только в файл (не в консоль). Файл: LOG_FILE или saturx.log
 	logPath := os.Getenv("LOG_FILE")
@@ -318,6 +520,11 @@ func main() {
 	clientID := strings.TrimSpace(os.Getenv("KICK_CLIENT_ID"))
 	clientSecret := strings.TrimSpace(os.Getenv("KICK_CLIENT_SECRET"))
 	channelSlug := strings.TrimSpace(os.Getenv("CHANNEL_SLUG"))
+	if channelSlug != "" {
+		if normalized, err := normalizeChannelSlugInput(channelSlug); err == nil {
+			channelSlug = normalized
+		}
+	}
 
 	kickReady := clientID != "" && clientSecret != "" && channelSlug != ""
 	if !kickReady {
@@ -372,8 +579,29 @@ func main() {
 	}
 
 	httpFactory = httpclient.NewFactory()
+	var channelMu sync.RWMutex
 	var broadcasterUserID int
-	getBID := func() int { return broadcasterUserID }
+	getChannelSlug := func() string {
+		channelMu.RLock()
+		defer channelMu.RUnlock()
+		return channelSlug
+	}
+	getBID := func() int {
+		channelMu.RLock()
+		defer channelMu.RUnlock()
+		return broadcasterUserID
+	}
+	setBID := func(id int) {
+		channelMu.Lock()
+		broadcasterUserID = id
+		channelMu.Unlock()
+	}
+	setChannelSlug := func(slug string) {
+		channelMu.Lock()
+		channelSlug = slug
+		broadcasterUserID = 0
+		channelMu.Unlock()
+	}
 	refreshFunc := func(accountID int) (string, error) {
 		_, refresh, _, _, ok := store.GetAccountByIndex(accountID)
 		if !ok || refresh == "" {
@@ -404,7 +632,7 @@ func main() {
 			}
 		}
 	}
-	sendFunc := makeSendFunc(store, httpFactory, ctx, channelSlug, getBID, refreshFunc)
+	sendFunc := makeSendFunc(store, httpFactory, ctx, getChannelSlug, getBID, setBID, refreshFunc)
 	manager := runner.NewAccountManager(sendFunc)
 	for i := 1; i <= store.Count(); i++ {
 		manager.EnsureRunner(i)
@@ -422,6 +650,11 @@ func main() {
 	licenseHMACSecret := os.Getenv("LICENSE_HMAC_SECRET")
 	if licenseHMACSecret == "" {
 		licenseHMACSecret = defaultLicenseHMACSecret
+	}
+	adminRelease := strings.TrimSpace(defaultAdminRelease) == "1"
+	if adminRelease {
+		licenseServerURL = ""
+		licenseHMACSecret = ""
 	}
 	var gate *licenseGate
 	var licStore *licensestore.Store
@@ -452,20 +685,26 @@ func main() {
 		// Без LICENSE_SERVER_URL доступ закрыт (или SKIP_LICENSE=1 для теста)
 		gate = &licenseGate{}
 	}
-	skipLicense := os.Getenv("SKIP_LICENSE") == "1" || strings.ToLower(strings.TrimSpace(os.Getenv("SKIP_LICENSE"))) == "true"
+	skipLicense := adminRelease ||
+		os.Getenv("SKIP_LICENSE") == "1" ||
+		strings.ToLower(strings.TrimSpace(os.Getenv("SKIP_LICENSE"))) == "true"
 	if skipLicense {
 		gate.SetValid(true)
-		log.Println("Test mode: SKIP_LICENSE=1 — license checks disabled")
+		if adminRelease {
+			log.Println("Admin release build: license disabled")
+		} else {
+			log.Println("Test mode: SKIP_LICENSE=1 — license checks disabled")
+		}
 	}
 	// При старте без валидной лицензии не работаем: останавливаем раннеры (они уже созданы выше)
 	if licenseServerURL != "" && gate != nil && !gate.Valid() && !skipLicense {
 		manager.Stop()
 	}
 	vb := viewerbot.New()
-	go runWebServer(ctx, store, channelSlug, dashboardPort, manager, vb, oauthClient, clientID, clientSecret, func() {
+	go runWebServer(ctx, store, channelSlug, dashboardPort, manager, vb, oauthClient, clientID, clientSecret, setChannelSlug, func() {
 		time.Sleep(200 * time.Millisecond)
 		os.Exit(0)
-	}, gate, licStore, licenseServerURL, licenseHMACSecret, deviceFP)
+	}, gate, licStore, licenseServerURL, licenseHMACSecret, deviceFP, skipLicense, adminRelease)
 
 	// При каждом запуске открываем дашборд в браузере после поднятия веб-сервера.
 	go func() {
@@ -501,13 +740,17 @@ func main() {
 
 	accessToken, _, proxy, _ := store.Current()
 	resolveChannel := func(token, proxyStr string) int {
+		slug := getChannelSlug()
+		if slug == "" {
+			return 0
+		}
 		try := func(proxy string) (int, error) {
 			client := apiClientWithProxy(proxy)
 			api, err := kick.NewAPIClient(kickapitypes.APIClientConfig{HTTPClient: client})
 			if err != nil {
 				return 0, err
 			}
-			channels, err := api.Channel().GetChannelsByBroadcasterSlug(ctx, token, []string{channelSlug})
+			channels, err := api.Channel().GetChannelsByBroadcasterSlug(ctx, token, []string{slug})
 			if err != nil {
 				return 0, err
 			}
@@ -525,8 +768,8 @@ func main() {
 		}
 		return id
 	}
-	broadcasterUserID = resolveChannel(accessToken, proxy)
-	if broadcasterUserID == 0 {
+	setBID(resolveChannel(accessToken, proxy))
+	if getBID() == 0 {
 		var currentNum int
 		for _, a := range store.List() {
 			if a.Current {
@@ -537,15 +780,15 @@ func main() {
 		if currentNum != 0 {
 			if _, err := refreshFunc(currentNum); err == nil {
 				accessToken, _, proxy, _ = store.Current()
-				broadcasterUserID = resolveChannel(accessToken, proxy)
-				if broadcasterUserID != 0 {
-					log.Printf("Token refreshed. Channel %s -> broadcaster_user_id=%d", channelSlug, broadcasterUserID)
+				setBID(resolveChannel(accessToken, proxy))
+				if getBID() != 0 {
+					log.Printf("Token refreshed. Channel %s -> broadcaster_user_id=%d", getChannelSlug(), getBID())
 				}
 			}
 		}
 	}
-	if broadcasterUserID != 0 {
-		log.Printf("Channel %s -> broadcaster_user_id=%d", channelSlug, broadcasterUserID)
+	if getBID() != 0 {
+		log.Printf("Channel %s -> broadcaster_user_id=%d", getChannelSlug(), getBID())
 	} else {
 		log.Println("Current account unauthorized (401) or channel not found. Pick an account in the dashboard or add one (Add account).")
 	}
