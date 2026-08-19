@@ -173,4 +173,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Keep examples generic and never commit s
 
 ## License
 
-[MIT](LICENSE) © 2026 Santoridev
+[MIT](LICENSE) © 2026 Santori
